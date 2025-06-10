@@ -1,12 +1,12 @@
 {
-  "name": "ck-tt-wa",
+  "name": "abZtech_MD",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "author": "Chanuka",
+  "author": "AbZtech",
   "license": "MIT",
   "private": true,
   "keywords": [],
