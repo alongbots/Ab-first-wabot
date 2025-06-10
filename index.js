@@ -1,30 +1,36 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
-const qrcode = require('qrcode-terminal');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const QRCode = require('qrcode');
 
 // ===== CONFIGURATION ===== //
 const BOT_PREFIX = '.'; // Bot command prefix
 const AUTH_FOLDER = './auth_info_multi'; // Folder for session
 const PLUGIN_FOLDER = './plugins';
-const PORT = process.env.PORT || 3000; 
+const PORT = process.env.PORT || 3000;
 // ========================= //
+
+let latestQR = ''; 
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
 
     const sock = makeWASocket({
         logger: pino({ level: 'silent' }),
-        printQRInTerminal: false, // We'll use qrcode-terminal
+        printQRInTerminal: false,
         auth: state
     });
 
-    // Show QR manually
+    // QR Code & Connection Handling
     sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
         if (qr) {
-            qrcode.generate(qr, { small: true });
+            QRCode.toDataURL(qr, (err, url) => {
+                if (!err) {
+                    latestQR = url;
+                }
+            });
         }
 
         if (connection === 'close') {
@@ -33,7 +39,6 @@ async function startBot() {
             if (shouldReconnect) startBot();
         } else if (connection === 'open') {
             console.log('✅ Bot is connected');
-            // Send confirmation to your own number
             const userJid = sock.user.id;
             sock.sendMessage(userJid, { text: '✅ Bot linked successfully!' });
         }
@@ -41,7 +46,7 @@ async function startBot() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    // Load plugins
+    // Load Plugins
     const plugins = new Map();
     const pluginPath = path.join(__dirname, PLUGIN_FOLDER);
     fs.readdirSync(pluginPath).forEach(file => {
@@ -56,7 +61,7 @@ async function startBot() {
         }
     });
 
-    // Message handler
+    // Message Handling
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
         if (type !== 'notify') return;
 
@@ -86,8 +91,28 @@ async function startBot() {
 startBot();
 
 http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('working i guess\n');
+    if (req.url === '/qr') {
+        if (latestQR) {
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(`
+                <html>
+                    <head>
+                        <title>WhatsApp QR Code</title>
+                    </head>
+                    <body style="display:flex;justify-content:center;align-items:center;height:100vh;background:#111;color:white;flex-direction:column;">
+                        <h2>Scan the QR Code to Link WhatsApp</h2>
+                        <img src="${latestQR}" alt="QR Code" style="border:10px solid white; max-width: 90vw;"/>
+                    </body>
+                </html>
+            `);
+        } else {
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('No QR code available yet. Please wait...');
+        }
+    } else {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Server is running. Visit /qr to view the QR code.\n');
+    }
 }).listen(PORT, () => {
     console.log(`🌐 HTTP Server running at http://localhost:${PORT}`);
 });
