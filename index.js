@@ -3,11 +3,13 @@ const pino = require('pino');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 
 // ===== CONFIGURATION ===== //
 const BOT_PREFIX = '.'; // Bot command prefix
 const AUTH_FOLDER = './auth_info_multi'; // Folder for session
 const PLUGIN_FOLDER = './plugins';
+const PORT = process.env.PORT || 3000; 
 // ========================= //
 
 async function startBot() {
@@ -82,3 +84,10 @@ async function startBot() {
 }
 
 startBot();
+
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('working i guess\n');
+}).listen(PORT, () => {
+    console.log(`🌐 HTTP Server running at http://localhost:${PORT}`);
+});
