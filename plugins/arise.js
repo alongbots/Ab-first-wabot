@@ -15,7 +15,7 @@ module.exports = {
         const triggerRegex = /\b(arise|test|bot|rise)\b/i;
 
         if (triggerRegex.test(body.trim())) {
-            const info = '*🤖 BOT ACTIVE AND RUNNING...*';
+            const info = '*BOT ACTIVE AND RUNNING...*';
             const imgUrl = 'https://i.ibb.co/KpcF9Gnf/4f41074aab5a035fcac5e111911b2456-1.jpg';
             const author = 'ABZTech';
             const botname = 'ABZTech Bot';
