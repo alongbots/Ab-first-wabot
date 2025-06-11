@@ -1,3 +1,4 @@
+
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
@@ -20,8 +21,13 @@ async function startBot() {
     const sock = makeWASocket({
         logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
-        auth: state
+        auth: state,
+        keepAliveIntervalMs: 10000 
     });
+
+    setInterval(() => {
+        console.log(`[${new Date().toLocaleString()}] 🔄 Bot is still running...`);
+    }, 5 * 60 * 1000);
 
     sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
         if (qr) {
@@ -59,7 +65,6 @@ async function startBot() {
         }
     });
 
-    // Message Handling
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
         if (type !== 'notify') return;
 
