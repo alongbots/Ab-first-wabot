@@ -1,8 +1,9 @@
-# Chanu-wa-bot
+# AbZtech MD  for beginners 
 
-Just a fun little bot I made for WhatsApp
+Just a fun little bot I remade for WhatsApp
 using Baileys.  
-It can chat with AI, send some images, and
+It can send  and
 do random stuff.
 
-runs all its stuff in one file (`index.js`).  
+main handler of bot  (`index.js`).  
+
