@@ -1,6 +1,5 @@
-const fetch = require('node-fetch');
-
 const chatbotUsers = new Set();
+const DEFAULT_AI_ENDPOINT = 'https://ab-techiai.abrahamdw882.workers.dev/';
 
 module.exports = {
     name: 'chatbot',
@@ -11,32 +10,47 @@ module.exports = {
 
         if (chatbotUsers.has(from)) {
             chatbotUsers.delete(from);
-            await sock.sendMessage(from, { text: '🤖 Chatbot *disabled* for this chat.' }, { quoted: msg });
+            await sock.sendMessage(from, 
+                { text: '🤖 Chatbot *disabled* for this chat.' }, 
+                { quoted: msg }
+            );
         } else {
             chatbotUsers.add(from);
-            await sock.sendMessage(from, { text: '🤖 Chatbot *enabled*! Reply to this message or send any text.' }, { quoted: msg });
+            await sock.sendMessage(from, 
+                { text: '🤖 Chatbot *enabled*! I will now respond to messages in this chat.' }, 
+                { quoted: msg }
+            );
         }
     },
 
     async onMessage(sock, msg) {
         const from = msg.key.remoteJid;
         const isBot = msg.key.fromMe;
-        const body = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
-
-        if (isBot || !chatbotUsers.has(from)) return;
+        const body = msg.message?.conversation || 
+                    msg.message?.extendedTextMessage?.text || '';
+        if (isBot || !chatbotUsers.has(from) || !body.trim()) return;
 
         try {
-            const q = encodeURIComponent(body);
-            const apiUrl = `https://ab-tech-ai.abrahamdw882.workers.dev/?q=${q}`;
+            const response = await fetch(DEFAULT_AI_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    messages: [{ role: 'user', content: body }]
+                })
+            });
 
-            const res = await fetch(apiUrl);
-            const json = await res.json();
+            const data = await response.json();
+            const reply = data.choices?.[0]?.message?.content || 
+                         "🤖 Sorry, I couldn't process your request.";
 
-            const reply = json.response || '🤖 Sorry, I could not understand.';
             await sock.sendMessage(from, { text: reply }, { quoted: msg });
+
         } catch (err) {
-            console.error('❌ Chatbot API error:', err);
-            await sock.sendMessage(from, { text: '⚠️ Failed to get response from AI.' }, { quoted: msg });
+            console.error('Chatbot error:', err);
+            await sock.sendMessage(from, 
+                { text: '⚠️ An error occurred while processing your message.' }, 
+                { quoted: msg }
+            );
         }
     }
 };
