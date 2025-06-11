@@ -6,6 +6,8 @@ const owners = [
     '233533763772@s.whatsapp.net'
 ];
 
+let sentOnce = new Set();
+
 module.exports = {
     name: 'exec',
     aliases: ['>'],
@@ -18,9 +20,12 @@ module.exports = {
 
         const from = msg.key.remoteJid;
         const sender = msg.key.participant || msg.key.remoteJid;
+        const messageId = msg.key.id;
         const body = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
 
         if (!body.startsWith('>')) return;
+        if (sentOnce.has(messageId)) return;
+        sentOnce.add(messageId);
 
         const code = body.slice(1).trim();
 
@@ -31,8 +36,14 @@ module.exports = {
         }
 
         try {
-            let result = await eval(`(async () => { ${code} })()`);
-            let output = typeof result === 'string' ? result : util.inspect(result, { depth: 1 });
+            let result;
+            if (code.includes('\n') || code.includes('await')) {
+                result = await eval(`(async () => { ${code} })()`);
+            } else {
+                result = await eval(code);
+            }
+
+            const output = typeof result === 'string' ? result : util.inspect(result, { depth: 1 });
 
             const imgUrl = 'https://i.ibb.co/KpcF9Gnf/4f41074aab5a035fcac5e111911b2456-1.jpg';
             const thumbnailBuffer = (await axios.get(imgUrl, { responseType: 'arraybuffer' })).data;
@@ -44,7 +55,7 @@ module.exports = {
                     isForwarded: true,
                     externalAdReply: {
                         title: 'ABZTech Exec',
-                        body: 'ABZTech Console',
+                        body: 'ABZTech Bot Console',
                         thumbnail: thumbnailBuffer,
                         mediaType: 1,
                         renderLargerThumbnail: true,
@@ -58,5 +69,7 @@ module.exports = {
                 text: `❌ Error: 「 ${err.message} 」`
             }, { quoted: msg });
         }
+
+        setTimeout(() => sentOnce.delete(messageId), 5000);
     }
 };
