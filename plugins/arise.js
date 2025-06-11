@@ -1,10 +1,10 @@
 const axios = require('axios');
 
 module.exports = {
-    name: 'autotrigger',
+    name: 'autorise',
     description: 'Auto reply to trigger keywords like "arise", "test", "bot", etc.',
 
-    async execute() {}, 
+    async execute() {},
 
     async onMessage(sock, msg) {
         if (!msg.message || msg.key.fromMe) return;
@@ -39,8 +39,6 @@ module.exports = {
                         }
                     }
                 }, { quoted: msg });
-
-                console.log(`✅ Auto-triggered reply to "${body.trim()}"`);
             } catch (err) {
                 console.error('❌ Error sending preview message:', err);
             }
