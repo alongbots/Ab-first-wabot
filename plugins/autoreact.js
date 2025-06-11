@@ -13,12 +13,13 @@ module.exports = {
             const from = msg.key.remoteJid;
             const sender = msg.key.participant || from;
 
-            console.log('🔍 Incoming message from:', sender); 
+            console.log('🔍 Incoming message from:', sender);
 
-            const targetJid = '+233533763772';
+            const targetJid = '233533763772@s.whatsapp.net'; 
             const reactionEmoji = '✨';
 
             if (sender === targetJid) {
+                console.log('✨ Reacting to message...');
                 await sock.sendMessage(from, {
                     react: {
                         text: reactionEmoji,
