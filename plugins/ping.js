@@ -16,7 +16,7 @@ module.exports = {
         const arch = os.arch();
 
         const statusMessage = `
-┌───⏱️ *Bot Status*
+┌───⏱️ *pong!*
 │
 ├ 🟢 *Status:* Online & Active
 ├ 🕰️ *Uptime:* ${(uptime / 60).toFixed(2)} mins
@@ -24,7 +24,7 @@ module.exports = {
 ├ 🖥️ *Platform:* ${platform} (${arch})
 ├ 📦 *RAM:* ${freeMem} MB Free / ${totalMem} MB Total
 │
-└────✨ *ABZTech Bot  Info*
+└────✨ *ABZTech*
         `.trim();
 
         await sock.sendMessage(from, { text: statusMessage }, { quoted: msg });
