@@ -9,16 +9,16 @@ module.exports = {
             if (!msg.message || msg.key.fromMe) return;
 
             const from = msg.key.remoteJid;
-            const sender = msg.key.participant || from;
+            const sender = msg.key.participant || msg.key.remoteJid;
 
-            const targetNumber = '233533763772'; 
-            const senderNumber = sender.split('@')[0]; 
+            const owners = [
+                '25770239992037@lid',
+                '233533763772@s.whatsapp.net'
+            ];
+
             const reactionEmoji = '✨';
 
-            console.log('🔍 Normalized sender:', senderNumber);
-
-            if (senderNumber === targetNumber) {
-                console.log('✨ Reacting to message...');
+            if (owners.includes(sender)) {
                 await sock.sendMessage(from, {
                     react: {
                         text: reactionEmoji,
