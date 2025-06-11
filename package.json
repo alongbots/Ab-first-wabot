@@ -2,9 +2,9 @@
   "name": "abZtech_MD",
   "version": "1.0.0",
   "description": "",
-  "main": "pm2.js",
+  "main": "index.js",
   "scripts": {
-    "start": "pm2-runtime start pm2.js --name ABZTECH"
+    "start": "pm2-runtime start index.js --name abztech"
   },
   "author": "AbZtech",
   "license": "MIT",
