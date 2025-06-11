@@ -2,9 +2,7 @@ module.exports = {
     name: 'autoreact',
     description: 'Auto-react to ABZTech messages',
 
-    async execute() {
-       
-    },
+    async execute() {},
 
     async onMessage(sock, msg) {
         try {
@@ -12,13 +10,14 @@ module.exports = {
 
             const from = msg.key.remoteJid;
             const sender = msg.key.participant || from;
+            const senderBase = sender.split('@')[0];
 
-            console.log('🔍 Incoming message from:', sender);
+            console.log('🔍 Incoming message from:', senderBase);
 
-            const targetJid = '233533763772@s.whatsapp.net'; 
+            const targetNumber = '233533763772';
             const reactionEmoji = '✨';
 
-            if (sender === targetJid) {
+            if (senderBase === targetNumber) {
                 console.log('✨ Reacting to message...');
                 await sock.sendMessage(from, {
                     react: {
