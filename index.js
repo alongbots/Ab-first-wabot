@@ -12,7 +12,7 @@ const PLUGIN_FOLDER = './plugins';
 const PORT = process.env.PORT || 3000;
 // ========================= //
 
-let latestQR = ''; 
+let latestQR = '';
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
@@ -23,7 +23,6 @@ async function startBot() {
         auth: state
     });
 
-    // QR Code & Connection Handling
     sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
         if (qr) {
             QRCode.toDataURL(qr, (err, url) => {
@@ -46,7 +45,6 @@ async function startBot() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    // Load Plugins
     const plugins = new Map();
     const pluginPath = path.join(__dirname, PLUGIN_FOLDER);
     fs.readdirSync(pluginPath).forEach(file => {
@@ -71,18 +69,28 @@ async function startBot() {
         const from = msg.key.remoteJid;
         const body = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
 
-        if (!body.startsWith(BOT_PREFIX)) return;
+        if (body.startsWith(BOT_PREFIX)) {
+            const args = body.slice(BOT_PREFIX.length).trim().split(/\s+/);
+            const commandName = args.shift().toLowerCase();
 
-        const args = body.slice(BOT_PREFIX.length).trim().split(/\s+/);
-        const commandName = args.shift().toLowerCase();
+            const plugin = plugins.get(commandName);
+            if (plugin) {
+                try {
+                    await plugin.execute(sock, msg, args);
+                } catch (err) {
+                    console.error(`❌ Error in plugin "${commandName}":`, err);
+                    await sock.sendMessage(from, { text: '⚠️ Error running command.' }, { quoted: msg });
+                }
+            }
+        }
 
-        const plugin = plugins.get(commandName);
-        if (plugin) {
-            try {
-                await plugin.execute(sock, msg, args);
-            } catch (err) {
-                console.error(`❌ Error in plugin "${commandName}":`, err);
-                await sock.sendMessage(from, { text: '⚠️ Error running command.' }, { quoted: msg });
+        for (const plugin of plugins.values()) {
+            if (typeof plugin.onMessage === 'function') {
+                try {
+                    await plugin.onMessage(sock, msg);
+                } catch (err) {
+                    console.error(`Error in plugin [${plugin.name}] onMessage:`, err);
+                }
             }
         }
     });
@@ -96,12 +104,10 @@ http.createServer((req, res) => {
             res.writeHead(200, { 'Content-Type': 'text/html' });
             res.end(`
                 <html>
-                    <head>
-                        <title>WhatsApp QR Code</title>
-                    </head>
+                    <head><title>WhatsApp QR Code</title></head>
                     <body style="display:flex;justify-content:center;align-items:center;height:100vh;background:#111;color:white;flex-direction:column;">
                         <h2>Scan the QR Code to Link WhatsApp</h2>
-                        <img src="${latestQR}" alt="QR Code" style="border:10px solid white; max-width: 90vw;"/>
+                        <img src="${latestQR}" alt="QR Code" style="border:10px solid white; max-width: 90vw;" />
                     </body>
                 </html>
             `);
