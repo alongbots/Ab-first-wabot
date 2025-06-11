@@ -1,40 +1,43 @@
 const fetch = require('node-fetch');
 
+
+const chatbotUsers = new Set();
+
 module.exports = {
     name: 'chatbot',
-    aliases: ['ai'],
-    description: 'Toggle chatbot mode on/off',
-
-    async execute(sock, msg, args, activeReplyMode) {
+    description: 'Toggle AI Chatbot mode',
+    async execute(sock, msg, args) {
         const from = msg.key.remoteJid;
 
-        if (activeReplyMode.has(from)) {
-            activeReplyMode.delete(from);
-            await sock.sendMessage(from, { text: '🤖 Chatbot mode deactivated.' }, { quoted: msg });
+        if (chatbotUsers.has(from)) {
+            chatbotUsers.delete(from);
+            await sock.sendMessage(from, { text: '🤖 Chatbot *disabled* for this chat.' }, { quoted: msg });
         } else {
-            activeReplyMode.add(from);
-            await sock.sendMessage(from, { text: '🤖 Chatbot mode activated. Reply to me!' }, { quoted: msg });
+            chatbotUsers.add(from);
+            await sock.sendMessage(from, { text: '🤖 Chatbot *enabled*! Reply to this message or send any text.' }, { quoted: msg });
         }
     },
 
-    async onMessage(sock, msg, activeReplyMode) {
+    async onMessage(sock, msg) {
         const from = msg.key.remoteJid;
-        const isReplyToBot = msg.message?.extendedTextMessage?.contextInfo?.participant === sock.user.id;
+        const isBot = msg.key.fromMe;
+        const body = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
 
-        if (activeReplyMode.has(from) && isReplyToBot) {
-            const userText = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
-            if (!userText) return;
 
-            try {
-                const res = await fetch(`https://ab-deepseekai.abrahamdw882.workers.dev/?q=${encodeURIComponent(userText)}`);
-                const data = await res.json();
-                const reply = data.response || '🤖 Sorry, I have no response.';
+        if (isBot || !chatbotUsers.has(from)) return;
 
-                await sock.sendMessage(from, { text: reply }, { quoted: msg });
-            } catch (err) {
-                console.error('Chatbot API error:', err);
-                await sock.sendMessage(from, { text: '⚠️ AI failed to respond.' }, { quoted: msg });
-            }
+        try {
+            const q = encodeURIComponent(body);
+            const apiUrl = `https://ab-deepseekai.abrahamdw882.workers.dev/?q=${q}`;
+
+            const res = await fetch(apiUrl);
+            const json = await res.json();
+
+            const reply = json.response || '🤖 Sorry, I could not understand.';
+            await sock.sendMessage(from, { text: reply }, { quoted: msg });
+        } catch (err) {
+            console.error('❌ Chatbot API error:', err);
+            await sock.sendMessage(from, { text: '⚠️ Failed to get response from AI.' }, { quoted: msg });
         }
     }
 };
