@@ -9,7 +9,7 @@ const owners = [
 module.exports = {
     name: 'exec',
     aliases: ['>'],
-    description: 'Execute JavaScript code or special keywords (Owner only)',
+    description: 'Execute JavaScript code (Owner only)',
 
     async execute() {},
 
@@ -25,42 +25,32 @@ module.exports = {
         const code = body.slice(1).trim();
 
         if (!owners.includes(sender)) {
-            return await sock.sendMessage(from, { text: '⛔ You are not authorized to use this command.' }, { quoted: msg });
+            return await sock.sendMessage(from, {
+                text: '⛔ You are not authorized to use this command.'
+            }, { quoted: msg });
         }
 
         try {
-            if (code === 'uptime') {
-                const totalSeconds = process.uptime();
-                const hours = Math.floor(totalSeconds / 3600);
-                const minutes = Math.floor((totalSeconds % 3600) / 60);
-                const seconds = Math.floor(totalSeconds % 60);
-                const formattedTime = `${hours}h ${minutes}m ${seconds}s`;
+            let result = await eval(`(async () => { ${code} })()`);
+            let output = typeof result === 'string' ? result : util.inspect(result, { depth: 1 });
 
-                const imgUrl = 'https://i.ibb.co/KpcF9Gnf/4f41074aab5a035fcac5e111911b2456-1.jpg';
-                const thumbnailBuffer = (await axios.get(imgUrl, { responseType: 'arraybuffer' })).data;
-
-                return await sock.sendMessage(from, {
-                    text: `⏱️ Bot Uptime: 「 ${formattedTime} 」`,
-                    contextInfo: {
-                        forwardingScore: 999,
-                        isForwarded: true,
-                        externalAdReply: {
-                            title: 'ABZTech',
-                            body: 'ABZTech Bot',
-                            thumbnail: thumbnailBuffer,
-                            mediaType: 1,
-                            renderLargerThumbnail: true,
-                            sourceUrl: 'https://ab-tech-api.vercel.app/'
-                        }
-                    }
-                }, { quoted: msg });
-            }
-
-            const result = await eval(code);
-            const output = typeof result === 'string' ? result : util.inspect(result, { depth: 1 });
+            const imgUrl = 'https://i.ibb.co/KpcF9Gnf/4f41074aab5a035fcac5e111911b2456-1.jpg';
+            const thumbnailBuffer = (await axios.get(imgUrl, { responseType: 'arraybuffer' })).data;
 
             await sock.sendMessage(from, {
-                text: `☑️ Result: 「 ${output} 」`
+                text: `☑️ Result: 「 ${output} 」`,
+                contextInfo: {
+                    forwardingScore: 999,
+                    isForwarded: true,
+                    externalAdReply: {
+                        title: 'ABZTech Exec',
+                        body: 'ABZTech Console',
+                        thumbnail: thumbnailBuffer,
+                        mediaType: 1,
+                        renderLargerThumbnail: true,
+                        sourceUrl: 'https://ab-tech-api.vercel.app/'
+                    }
+                }
             }, { quoted: msg });
 
         } catch (err) {
