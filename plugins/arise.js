@@ -8,10 +8,10 @@ module.exports = {
     async execute(sock, msg) {
         const from = msg.key.remoteJid;
         const info = '*BOT ACTIVE AND RUNNING..*';
-        const imgUrl = 'https://telegra.ph/file/403a47e628ef49dee27a3.jpg';
+        const imgUrl = 'https://i.ibb.co/KpcF9Gnf/4f41074aab5a035fcac5e111911b2456-1.jpg';
         const author = 'ABZTech';
         const botname = 'ABZTech Bot';
-        const sourceUrl = 'https://abrahamdw882.github.io';
+        const sourceUrl = 'https://ab-tech-api.vercel.app/';
 
         try {
             const thumbnailBuffer = (await axios.get(imgUrl, { responseType: 'arraybuffer' })).data;
