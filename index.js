@@ -1,4 +1,3 @@
-
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
@@ -14,7 +13,7 @@ const PORT = process.env.PORT || 3000;
 // ========================= //
 
 let latestQR = '';
-
+let botStatus = 'disconnected'; 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
 
@@ -22,7 +21,7 @@ async function startBot() {
         logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
         auth: state,
-        keepAliveIntervalMs: 10000 
+        keepAliveIntervalMs: 10000
     });
 
     setInterval(() => {
@@ -39,10 +38,12 @@ async function startBot() {
         }
 
         if (connection === 'close') {
+            botStatus = 'disconnected';
             const shouldReconnect = (lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut);
             console.log('Connection closed. Reconnecting...', shouldReconnect);
             if (shouldReconnect) startBot();
         } else if (connection === 'open') {
+            botStatus = 'connected';
             console.log('✅ Bot is connected');
             const userJid = sock.user.id;
             sock.sendMessage(userJid, { text: '✅ Bot linked successfully!' });
@@ -120,6 +121,14 @@ http.createServer((req, res) => {
             res.writeHead(200, { 'Content-Type': 'text/plain' });
             res.end('No QR code available yet. Please wait...');
         }
+    } else if (req.url === '/watch') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            status: 'online',
+            botStatus: botStatus,
+            time: new Date().toISOString(),
+            message: '✅ Bot server is alive'
+        }));
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end('Server is running. Visit /qr to view the QR code.\n');
