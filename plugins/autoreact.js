@@ -1,24 +1,26 @@
-module.exports = {
+module.exports = { 
     name: 'autoreact',
-    description: 'Auto-react to ABZTech',
+    description: 'Auto-react to ABZTech messages',
 
     async onMessage(sock, msg) {
-        const from = msg.key.remoteJid;
-        const sender = msg.key.participant || msg.key.remoteJid;
-        const targetJid = '233533763772@s.whatsapp.net';
-        const reactionEmoji = '✨';
+        try {
+            if (!msg.message || msg.key.fromMe) return;
 
-        if (sender === targetJid) {
-            try {
+            const from = msg.key.remoteJid;
+            const sender = msg.key.participant || from;
+            const targetJid = '233533763772@s.whatsapp.net';
+            const reactionEmoji = '✨';
+
+            if (sender === targetJid) {
                 await sock.sendMessage(from, {
                     react: {
                         text: reactionEmoji,
-                        key: msg.key
-                    }
+                        key: msg.key,
+                    },
                 });
-            } catch (err) {
-                console.error('❌ Auto-react error:', err);
             }
+        } catch (err) {
+            console.error('❌ Auto-react error:', err);
         }
-    }
+    },
 };
