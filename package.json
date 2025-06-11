@@ -2,9 +2,9 @@
   "name": "abZtech_MD",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "pm2.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "pm2-runtime start pm2.js --name ABZTECH"
   },
   "author": "AbZtech",
   "license": "MIT",
@@ -17,6 +17,7 @@
     "pino": "^8.17.0",
     "qrcode-terminal": "^0.12.0",
     "qrcode": "^1.5.1",
-    "node-fetch": "^2.6.12"
+    "node-fetch": "^2.6.12",
+    "pm2": "^5.3.0"
   }
 }
