@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 module.exports = {
-    name: 'autorise',
+    name: 'autotrigger',
     description: 'Auto reply to certain keywords',
 
     async onMessage(sock, msg) {
@@ -9,7 +9,9 @@ module.exports = {
 
         const from = msg.key.remoteJid;
         const body = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
-        const triggerRegex = /^(test|rise|arise|bot)$/i;
+        const triggerRegex = /^[\.\-!]? *(test|rise|arise|bot)\b/i;
+
+        console.log('📩 Received message:', body);
 
         if (triggerRegex.test(body.trim())) {
             const info = '*BOT ACTIVE AND RUNNING..*';
@@ -36,6 +38,8 @@ module.exports = {
                         }
                     }
                 }, { quoted: msg });
+
+                console.log('✅ Auto-reply sent.');
             } catch (err) {
                 console.error('❌ Error sending preview message:', err);
             }
