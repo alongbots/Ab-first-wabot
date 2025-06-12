@@ -27,7 +27,7 @@ async function startBot() {
     });
 
     setInterval(() => {
-        console.log(`[${new Date().toLocaleString()}] 🔄 Bot is still running...`);
+        console.log(`[${new Date().toLocaleString()}] Bot is still running...`);
     }, 5 * 60 * 1000);
 
     sock.ev.on('connection.update', async (update) => {
@@ -46,22 +46,22 @@ async function startBot() {
                 : 0;
 
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-            console.log('❌ Connection closed. Reconnecting:', shouldReconnect);
+            console.log('Connection closed. Reconnecting:', shouldReconnect);
 
             if (shouldReconnect) {
-                console.log('🔁 Reconnecting in 10 seconds...');
+                console.log('Reconnecting in 10 seconds...');
                 setTimeout(startBot, 10000);
             } else {
-                console.log('🔒 Session logged out. Delete auth_info_multi to re-authenticate.');
+                console.log('Session logged out. Delete auth_info_multi to re-authenticate.');
             }
         } else if (connection === 'open') {
             botStatus = 'connected';
-            console.log('✅ Bot is connected');
+            console.log('Bot is connected');
             try {
                 const userJid = sock.user.id;
-                await sock.sendMessage(userJid, { text: '✅ Bot linked successfully!' });
+                await sock.sendMessage(userJid, { text: 'Bot linked successfully.' });
             } catch (err) {
-                console.error('⚠️ Could not send confirmation message:', err);
+                console.error('Could not send confirmation message:', err);
             }
         }
     });
@@ -103,8 +103,8 @@ async function startBot() {
                     try {
                         await plugin.execute(sock, msg, args);
                     } catch (err) {
-                        console.error(`❌ Error in plugin "${commandName}":`, err);
-                        await sock.sendMessage(from, { text: '⚠️ Error running command.' }, { quoted: msg });
+                        console.error(`Error in plugin "${commandName}":`, err);
+                        await sock.sendMessage(from, { text: 'Error running command.' }, { quoted: msg });
                     }
                 }
             }
@@ -114,16 +114,16 @@ async function startBot() {
                     try {
                         await plugin.onMessage(sock, msg);
                     } catch (err) {
-                        console.error(`❌ Error in plugin [${plugin.name}] onMessage:`, err);
+                        console.error(`Error in plugin [${plugin.name}] onMessage:`, err);
                     }
                 }
             }
 
         } catch (err) {
             if (err.message?.includes("Bad MAC")) {
-                console.warn("⚠️ Ignored Bad MAC decryption error for message from:", from);
+                console.warn("Ignored Bad MAC decryption error from:", from);
             } else {
-                console.error("❌ Unexpected error handling message:", err);
+                console.error("Unexpected error handling message:", err);
             }
         }
     });
@@ -150,48 +150,18 @@ http.createServer(async (req, res) => {
             res.writeHead(200, { 'Content-Type': 'text/plain' });
             res.end('No QR code available yet. Please wait...');
         }
-    } else if (url.pathname === '/code') {
-        const number = url.searchParams.get('number');
-
-        if (!number || !/^\d+$/.test(number)) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ error: '❌ Invalid or missing phone number. Use ?number=233XXXXXX' }));
-        }
-
-        try {
-            const { state } = await useMultiFileAuthState(AUTH_FOLDER);
-
-            const sock = makeWASocket({
-                logger: pino({ level: 'silent' }),
-                auth: state,
-                printQRInTerminal: false,
-            });
-
-            if (!state.creds.registered) {
-                const code = await sock.requestPairingCode(number);
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify({ message: 'Pairing Code Generated', code }));
-            } else {
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify({ message: 'Already registered. No pairing needed.' }));
-            }
-        } catch (err) {
-            console.error('❌ Error generating pairing code:', err);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ error: '❌ Failed to generate pairing code.' }));
-        }
     } else if (url.pathname === '/watch') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             status: 'online',
             botStatus,
             time: new Date().toISOString(),
-            message: '✅ Bot server is alive'
+            message: 'Bot server is alive'
         }));
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Server is running. Visit /qr or /code?number=23353376XXXX\n');
+        res.end('Server is running. Visit /qr\n');
     }
 }).listen(PORT, () => {
-    console.log(`🌐 HTTP Server running at http://localhost:${PORT}`);
+    console.log(`HTTP Server running at http://localhost:${PORT}`);
 });
