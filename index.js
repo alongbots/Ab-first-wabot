@@ -110,7 +110,6 @@ async function startBot() {
                     }
                 }
             }
-
             for (const plugin of plugins.values()) {
                 if (typeof plugin.onMessage === 'function') {
                     try {
@@ -133,7 +132,6 @@ async function startBot() {
 
 startBot();
 
-// Minimal web server
 http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
 
