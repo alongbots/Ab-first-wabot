@@ -90,30 +90,40 @@ async function startBot() {
         if (!msg.message || msg.key.fromMe) return;
 
         const from = msg.key.remoteJid;
-        const body = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
 
-        if (body.startsWith(BOT_PREFIX)) {
-            const args = body.slice(BOT_PREFIX.length).trim().split(/\s+/);
-            const commandName = args.shift().toLowerCase();
-            const plugin = plugins.get(commandName);
+        try {
+            const body = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
 
-            if (plugin) {
-                try {
-                    await plugin.execute(sock, msg, args);
-                } catch (err) {
-                    console.error(`❌ Error in plugin "${commandName}":`, err);
-                    await sock.sendMessage(from, { text: '⚠️ Error running command.' }, { quoted: msg });
+            if (body.startsWith(BOT_PREFIX)) {
+                const args = body.slice(BOT_PREFIX.length).trim().split(/\s+/);
+                const commandName = args.shift().toLowerCase();
+                const plugin = plugins.get(commandName);
+
+                if (plugin) {
+                    try {
+                        await plugin.execute(sock, msg, args);
+                    } catch (err) {
+                        console.error(`❌ Error in plugin "${commandName}":`, err);
+                        await sock.sendMessage(from, { text: '⚠️ Error running command.' }, { quoted: msg });
+                    }
                 }
             }
-        }
 
-        for (const plugin of plugins.values()) {
-            if (typeof plugin.onMessage === 'function') {
-                try {
-                    await plugin.onMessage(sock, msg);
-                } catch (err) {
-                    console.error(`❌ Error in plugin [${plugin.name}] onMessage:`, err);
+            for (const plugin of plugins.values()) {
+                if (typeof plugin.onMessage === 'function') {
+                    try {
+                        await plugin.onMessage(sock, msg);
+                    } catch (err) {
+                        console.error(`❌ Error in plugin [${plugin.name}] onMessage:`, err);
+                    }
                 }
+            }
+
+        } catch (err) {
+            if (err.message?.includes("Bad MAC")) {
+                console.warn("⚠️ Ignored Bad MAC decryption error for message from:", from);
+            } else {
+                console.error("❌ Unexpected error handling message:", err);
             }
         }
     });
@@ -160,7 +170,7 @@ http.createServer(async (req, res) => {
             if (!state.creds.registered) {
                 const code = await sock.requestPairingCode(number);
                 res.writeHead(200, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify({ message: '🔑 Pairing Code Generated', code }));
+                return res.end(JSON.stringify({ message: 'Pairing Code Generated', code }));
             } else {
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 return res.end(JSON.stringify({ message: 'Already registered. No pairing needed.' }));
