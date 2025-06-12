@@ -12,6 +12,7 @@
   "keywords": [],
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.0",
+    "@hapi/boom": "^10.0.1",
     "axios": "^1.6.8",
     "os": "^0.1.2",
     "pino": "^8.17.0",
