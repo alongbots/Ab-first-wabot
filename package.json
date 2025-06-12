@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "npx pm2-runtime pm2.js"
-  },
+  "start": "node index.js"
+},
   "author": "AbZtech",
   "license": "MIT",
   "private": true,
