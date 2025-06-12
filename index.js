@@ -49,7 +49,8 @@ async function startBot() {
             console.log('❌ Connection closed. Reconnecting:', shouldReconnect);
 
             if (shouldReconnect) {
-                startBot();
+                console.log('🔁 Reconnecting in 10 seconds...');
+                setTimeout(startBot, 10000);
             } else {
                 console.log('🔒 Session logged out. Delete auth_info_multi to re-authenticate.');
             }
@@ -144,7 +145,7 @@ http.createServer(async (req, res) => {
 
         if (!number || !/^\d+$/.test(number)) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ error: '❌ Invalid or missing phone number. Use ?number=XXXXXXXXXXX' }));
+            return res.end(JSON.stringify({ error: '❌ Invalid or missing phone number. Use ?number=233XXXXXX' }));
         }
 
         try {
