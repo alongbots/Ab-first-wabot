@@ -22,7 +22,13 @@ const db = new sqlite3.Database('./session.db');
 db.run(`CREATE TABLE IF NOT EXISTS sessions (
     filename TEXT PRIMARY KEY,
     content TEXT
-);`);
+);`, (err) => {
+    if (err) {
+        console.error("Failed to create sessions table:", err);
+        process.exit(1);
+    }
+    startBot();
+});
 
 function restoreAuthFiles() {
     return new Promise((resolve) => {
@@ -81,7 +87,7 @@ async function startBot() {
 
             if (shouldReconnect) {
                 console.log('Reconnecting in 10 seconds...');
-                setTimeout(startBot, 10000);
+                setTimeout(() => startBot(), 10000);
             } else {
                 console.log('Session logged out. Delete auth_info_multi and DB to re-authenticate.');
             }
@@ -98,8 +104,8 @@ async function startBot() {
     });
 
     sock.ev.on('creds.update', async () => {
-        await saveCreds();       
-        saveAuthFilesToDB();      
+        await saveCreds();
+        saveAuthFilesToDB();
     });
 
     const plugins = new Map();
@@ -162,8 +168,6 @@ async function startBot() {
         }
     });
 }
-
-startBot();
 
 http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
