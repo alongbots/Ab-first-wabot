@@ -1,14 +1,15 @@
-const { default: makeWASocket, DisconnectReason } = require('@whiskeysockets/baileys');
-const { useSQLiteAuthState } = require('./sqlite-auth');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const QRCode = require('qrcode');
 const { Boom } = require('@hapi/boom');
+const sqlite3 = require('sqlite3').verbose();
 
 // ===== CONFIGURATION ===== //
 const BOT_PREFIX = '.';
+const AUTH_FOLDER = './auth_info_multi';
 const PLUGIN_FOLDER = './plugins';
 const PORT = process.env.PORT || 3000;
 // ========================= //
@@ -16,8 +17,38 @@ const PORT = process.env.PORT || 3000;
 let latestQR = '';
 let botStatus = 'disconnected';
 
+const db = new sqlite3.Database('./session.db');
+
+db.run(`CREATE TABLE IF NOT EXISTS sessions (
+    filename TEXT PRIMARY KEY,
+    content TEXT
+);`);
+
+function restoreAuthFiles() {
+    return new Promise((resolve) => {
+        db.all("SELECT * FROM sessions", (err, rows) => {
+            if (err) return console.error("DB restore error:", err);
+            if (!fs.existsSync(AUTH_FOLDER)) fs.mkdirSync(AUTH_FOLDER);
+            rows.forEach(row => {
+                fs.writeFileSync(path.join(AUTH_FOLDER, row.filename), row.content, 'utf8');
+            });
+            resolve();
+        });
+    });
+}
+
+function saveAuthFilesToDB() {
+    fs.readdirSync(AUTH_FOLDER).forEach(file => {
+        const filePath = path.join(AUTH_FOLDER, file);
+        const content = fs.readFileSync(filePath, 'utf8');
+        db.run("INSERT OR REPLACE INTO sessions (filename, content) VALUES (?, ?)", [file, content]);
+    });
+}
+
 async function startBot() {
-    const { state, saveCreds } = useSQLiteAuthState();
+    await restoreAuthFiles();
+
+    const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
 
     const sock = makeWASocket({
         logger: pino({ level: 'silent' }),
@@ -52,7 +83,7 @@ async function startBot() {
                 console.log('Reconnecting in 10 seconds...');
                 setTimeout(startBot, 10000);
             } else {
-                console.log('Session logged out. Delete database to re-authenticate.');
+                console.log('Session logged out. Delete auth_info_multi and DB to re-authenticate.');
             }
         } else if (connection === 'open') {
             botStatus = 'connected';
@@ -66,24 +97,25 @@ async function startBot() {
         }
     });
 
-    sock.ev.on('creds.update', saveCreds);
+    sock.ev.on('creds.update', async () => {
+        await saveCreds();       
+        saveAuthFilesToDB();      
+    });
 
     const plugins = new Map();
     const pluginPath = path.join(__dirname, PLUGIN_FOLDER);
 
-    if (fs.existsSync(pluginPath)) {
-        fs.readdirSync(pluginPath).forEach(file => {
-            if (file.endsWith('.js')) {
-                const plugin = require(path.join(pluginPath, file));
-                if (plugin.name && typeof plugin.execute === 'function') {
-                    plugins.set(plugin.name.toLowerCase(), plugin);
-                    if (Array.isArray(plugin.aliases)) {
-                        plugin.aliases.forEach(alias => plugins.set(alias.toLowerCase(), plugin));
-                    }
+    fs.readdirSync(pluginPath).forEach(file => {
+        if (file.endsWith('.js')) {
+            const plugin = require(path.join(pluginPath, file));
+            if (plugin.name && typeof plugin.execute === 'function') {
+                plugins.set(plugin.name.toLowerCase(), plugin);
+                if (Array.isArray(plugin.aliases)) {
+                    plugin.aliases.forEach(alias => plugins.set(alias.toLowerCase(), plugin));
                 }
             }
-        });
-    }
+        }
+    });
 
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
         if (type !== 'notify') return;
@@ -110,6 +142,7 @@ async function startBot() {
                     }
                 }
             }
+
             for (const plugin of plugins.values()) {
                 if (typeof plugin.onMessage === 'function') {
                     try {
