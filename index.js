@@ -120,8 +120,10 @@ async function startBot() {
 
 startBot();
 
-http.createServer((req, res) => {
-    if (req.url === '/qr') {
+http.createServer(async (req, res) => {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+
+    if (url.pathname === '/qr') {
         if (latestQR) {
             res.writeHead(200, { 'Content-Type': 'text/html' });
             res.end(`
@@ -137,7 +139,37 @@ http.createServer((req, res) => {
             res.writeHead(200, { 'Content-Type': 'text/plain' });
             res.end('No QR code available yet. Please wait...');
         }
-    } else if (req.url === '/watch') {
+    } else if (url.pathname === '/code') {
+        const number = url.searchParams.get('number');
+
+        if (!number || !/^\d+$/.test(number)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: '❌ Invalid or missing phone number. Use ?number=XXXXXXXXXXX' }));
+        }
+
+        try {
+            const { state } = await useMultiFileAuthState(AUTH_FOLDER);
+
+            const sock = makeWASocket({
+                logger: pino({ level: 'silent' }),
+                auth: state,
+                printQRInTerminal: false,
+            });
+
+            if (!state.creds.registered) {
+                const code = await sock.requestPairingCode(number);
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ message: '🔑 Pairing Code Generated', code }));
+            } else {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ message: 'Already registered. No pairing needed.' }));
+            }
+        } catch (err) {
+            console.error('❌ Error generating pairing code:', err);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: '❌ Failed to generate pairing code.' }));
+        }
+    } else if (url.pathname === '/watch') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             status: 'online',
@@ -147,7 +179,7 @@ http.createServer((req, res) => {
         }));
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Server is running. Visit /qr to view the QR code.\n');
+        res.end('Server is running. Visit /qr or /code?number=23353376XXXX\n');
     }
 }).listen(PORT, () => {
     console.log(`🌐 HTTP Server running at http://localhost:${PORT}`);
