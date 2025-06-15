@@ -11,7 +11,7 @@ const sqlite3 = require('sqlite3').verbose();
 const BOT_PREFIX = '.';
 const AUTH_FOLDER = './auth_info_multi';
 const PLUGIN_FOLDER = './plugins';
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 1000;
 // ========================= //
 
 let latestQR = '';
