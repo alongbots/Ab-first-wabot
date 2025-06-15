@@ -120,9 +120,9 @@ async function startBot() {
 
             try {
                 const userJid = sock.user.id;
-                await sock.sendMessage(userJid, { text: '🤖 Bot linked successfully!' });
+                await sock.sendMessage(userJid, { text: 'Bot linked successfully!' });
             } catch (err) {
-                console.error('❌ Could not send confirmation message:', err);
+                console.error('Could not send message:', err);
             }
         }
     });
