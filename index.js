@@ -7,15 +7,14 @@ const QRCode = require('qrcode');
 const { Boom } = require('@hapi/boom');
 const sqlite3 = require('sqlite3').verbose();
 
-// ===== CONFIGURATION ===== //
 const BOT_PREFIX = '.';
 const AUTH_FOLDER = './auth_info_multi';
 const PLUGIN_FOLDER = './plugins';
 const PORT = process.env.PORT || 1000;
-// ========================= //
 
 let latestQR = '';
 let botStatus = 'disconnected';
+let presenceInterval = null;
 
 const db = new sqlite3.Database('./session.db');
 
@@ -84,6 +83,12 @@ async function startBot() {
 
         if (connection === 'close') {
             botStatus = 'disconnected';
+
+            if (presenceInterval) {
+                clearInterval(presenceInterval);
+                presenceInterval = null;
+            }
+
             const statusCode = (lastDisconnect?.error instanceof Boom)
                 ? lastDisconnect.error.output.statusCode
                 : 0;
@@ -100,6 +105,15 @@ async function startBot() {
         } else if (connection === 'open') {
             botStatus = 'connected';
             console.log('Bot is connected');
+
+            if (!presenceInterval) {
+                presenceInterval = setInterval(() => {
+                    if (sock?.ws?.readyState === 1) {
+                        sock.sendPresenceUpdate('available');
+                    }
+                }, 10000);
+            }
+
             try {
                 const userJid = sock.user.id;
                 await sock.sendMessage(userJid, { text: 'Bot linked successfully.' });
@@ -129,8 +143,6 @@ async function startBot() {
         }
     });
 
-    let presenceIntervalStarted = false;
-
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
         if (type !== 'notify') return;
 
@@ -138,14 +150,6 @@ async function startBot() {
         if (!msg.message || msg.key.fromMe) return;
 
         const from = msg.key.remoteJid;
-
-        // so kenny it will send presense on wa instead right
-        if (!presenceIntervalStarted) {
-            presenceIntervalStarted = true;
-            setInterval(() => {
-                sock.sendPresenceUpdate('available');
-            }, 10000);
-        }
 
         try {
             const body = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
