@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
@@ -61,7 +61,6 @@ async function startBot() {
         auth: state,
         printQRInTerminal: false,
         keepAliveIntervalMs: 10000,
-        browser: ["Ubuntu", "Chrome", "20.0.04"],
         markOnlineOnConnect: true,
         syncFullHistory: true
     });
@@ -69,11 +68,6 @@ async function startBot() {
     setInterval(() => {
         console.log(`[${new Date().toLocaleString()}] Bot is still running...`);
     }, 5 * 60 * 1000);
-
-    // lets see if this shit will work
-    setInterval(() => {
-        sock.sendPresenceUpdate('available');
-    }, 10000);
 
     sock.ws.on('close', (code, reason) => {
         console.warn(`⚠️ WebSocket closed! Code: ${code}, Reason: ${reason}`);
@@ -135,6 +129,8 @@ async function startBot() {
         }
     });
 
+    let presenceIntervalStarted = false;
+
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
         if (type !== 'notify') return;
 
@@ -142,6 +138,14 @@ async function startBot() {
         if (!msg.message || msg.key.fromMe) return;
 
         const from = msg.key.remoteJid;
+
+        // so kenny it will send presense on wa instead right
+        if (!presenceIntervalStarted) {
+            presenceIntervalStarted = true;
+            setInterval(() => {
+                sock.sendPresenceUpdate('available');
+            }, 10000);
+        }
 
         try {
             const body = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
