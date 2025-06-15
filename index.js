@@ -6,6 +6,7 @@ const http = require('http');
 const QRCode = require('qrcode');
 const { Boom } = require('@hapi/boom');
 const sqlite3 = require('sqlite3').verbose();
+const downloadMultiFileAuthState = require('./session'); 
 
 // ===== CONFIGURATION ===== //
 const BOT_PREFIX = '.';
@@ -13,6 +14,7 @@ const AUTH_FOLDER = './auth_info_multi';
 const PLUGIN_FOLDER = './plugins';
 const PORT = process.env.PORT || 1000;
 // ========================= //
+
 let latestQR = '';
 let botStatus = 'disconnected';
 let presenceInterval = null;
@@ -52,10 +54,10 @@ function saveAuthFilesToDB() {
 }
 
 async function startBot() {
-    await restoreAuthFiles();
+    await downloadMultiFileAuthState(); // Download session from Hastebin
+    await restoreAuthFiles();           
 
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
-
     const sock = makeWASocket({
         logger: pino({ level: 'silent' }),
         auth: state,
@@ -85,57 +87,42 @@ async function startBot() {
         if (connection === 'close') {
             botStatus = 'disconnected';
 
-            if (presenceInterval) {
-                clearInterval(presenceInterval);
-                presenceInterval = null;
-            }
+            if (presenceInterval) clearInterval(presenceInterval);
 
             const statusCode = (lastDisconnect?.error instanceof Boom)
                 ? lastDisconnect.error.output.statusCode
                 : 0;
 
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-            console.log('Connection closed. Reconnecting:', shouldReconnect);
 
             if (shouldReconnect) {
-    console.log('Reconnecting in 10 seconds...');
-    setTimeout(() => startBot(), 10000);
-} else {
-    console.log('Session logged out. Cleaning up auth and session files...');
-    try {
-        if (fs.existsSync(AUTH_FOLDER)) {
-            fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
-            console.log('✅ Deleted auth_info_multi folder');
-        }
-    } catch (err) {
-        console.error(' Failed to delete auth_info_multi folder:', err);
-    }
-    db.run("DELETE FROM sessions", (err) => {
-        if (err) {
-            console.error('Failed to clear session DB:', err);
-        } else {
-            console.log('✅ Cleared session DB');
-        }
-    });
-    setTimeout(() => startBot(), 3000);
-}
+                console.log('Reconnecting in 10 seconds...');
+                setTimeout(() => startBot(), 10000);
+            } else {
+                console.log('Logged out. Cleaning up...');
+                if (fs.existsSync(AUTH_FOLDER)) fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
+                db.run("DELETE FROM sessions", (err) => {
+                    if (err) console.error('DB clear failed:', err);
+                    else console.log('✅ Cleared session DB');
+                });
+                setTimeout(() => startBot(), 3000);
+            }
+
         } else if (connection === 'open') {
             botStatus = 'connected';
-            console.log('Bot is connected');
+            console.log('Bot is connected ✅');
 
-            if (!presenceInterval) {
-                presenceInterval = setInterval(() => {
-                    if (sock?.ws?.readyState === 1) {
-                        sock.sendPresenceUpdate('available');
-                    }
-                }, 10000);
-            }
+            presenceInterval = setInterval(() => {
+                if (sock?.ws?.readyState === 1) {
+                    sock.sendPresenceUpdate('available');
+                }
+            }, 10000);
 
             try {
                 const userJid = sock.user.id;
-                await sock.sendMessage(userJid, { text: 'Bot linked successfully.' });
+                await sock.sendMessage(userJid, { text: '🤖 Bot linked successfully!' });
             } catch (err) {
-                console.error('Could not send confirmation message:', err);
+                console.error('❌ Could not send confirmation message:', err);
             }
         }
     });
@@ -167,76 +154,53 @@ async function startBot() {
         if (!msg.message || msg.key.fromMe) return;
 
         const from = msg.key.remoteJid;
+        const body = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
 
-        try {
-            const body = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
+        if (body.startsWith(BOT_PREFIX)) {
+            const args = body.slice(BOT_PREFIX.length).trim().split(/\s+/);
+            const commandName = args.shift().toLowerCase();
+            const plugin = plugins.get(commandName);
 
-            if (body.startsWith(BOT_PREFIX)) {
-                const args = body.slice(BOT_PREFIX.length).trim().split(/\s+/);
-                const commandName = args.shift().toLowerCase();
-                const plugin = plugins.get(commandName);
-
-                if (plugin) {
-                    try {
-                        await plugin.execute(sock, msg, args);
-                    } catch (err) {
-                        console.error(`Error in plugin "${commandName}":`, err);
-                        await sock.sendMessage(from, { text: 'Error running command.' }, { quoted: msg });
-                    }
+            if (plugin) {
+                try {
+                    await plugin.execute(sock, msg, args);
+                } catch (err) {
+                    console.error(`❌ Plugin error (${commandName}):`, err);
+                    await sock.sendMessage(from, { text: 'Error running command.' }, { quoted: msg });
                 }
             }
+        }
 
-            for (const plugin of plugins.values()) {
-                if (typeof plugin.onMessage === 'function') {
-                    try {
-                        await plugin.onMessage(sock, msg);
-                    } catch (err) {
-                        console.error(`Error in plugin [${plugin.name}] onMessage:`, err);
-                    }
+        for (const plugin of plugins.values()) {
+            if (typeof plugin.onMessage === 'function') {
+                try {
+                    await plugin.onMessage(sock, msg);
+                } catch (err) {
+                    console.error(`❌ onMessage error (${plugin.name}):`, err);
                 }
-            }
-
-        } catch (err) {
-            if (err.message?.includes("Bad MAC")) {
-                console.warn("Ignored Bad MAC decryption error from:", from);
-            } else {
-                console.error("Unexpected error handling message:", err);
             }
         }
     });
 }
 
-http.createServer(async (req, res) => {
+http.createServer((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
-
     if (url.pathname === '/qr') {
-        if (latestQR) {
-            res.writeHead(200, { 'Content-Type': 'text/html' });
-            res.end(`
-                <html>
-                    <head><title>WhatsApp QR Code</title></head>
-                    <body style="display:flex;justify-content:center;align-items:center;height:100vh;background:#111;color:white;flex-direction:column;">
-                        <h2>Scan the QR Code to Link WhatsApp</h2>
-                        <img src="${latestQR}" alt="QR Code" style="border:10px solid white; max-width: 90vw;" />
-                    </body>
-                </html>
-            `);
-        } else {
-            res.writeHead(200, { 'Content-Type': 'text/plain' });
-            res.end('No QR code available yet. Please wait...');
-        }
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(latestQR
+            ? `<html><body style="background:#111;color:white;text-align:center;"><h1>Scan QR</h1><img src="${latestQR}" /></body></html>`
+            : 'QR not generated yet.');
     } else if (url.pathname === '/watch') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             status: 'online',
             botStatus,
-            time: new Date().toISOString(),
-            message: 'Bot server is alive'
+            time: new Date().toISOString()
         }));
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Server is running. Visit /qr\n');
+        res.end('Bot Server is Running. Visit /qr to scan.');
     }
 }).listen(PORT, () => {
     console.log(`HTTP Server running at http://localhost:${PORT}`);
-});  
+});
