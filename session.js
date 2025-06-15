@@ -1,23 +1,26 @@
+// session.js
 const fs = require('fs');
-const axios = require('axios');
 const path = require('path');
+const axios = require('axios');
 
-const SESSION_ID = 'ABZTECH'; 
+const SESSION_ID = 'ABZTECH'; // i have to change this in my Hastebin key
 
-async function downloadSession(sessionId = SESSION_ID, savePath = './session/creds.json') {
+async function downloadMultiFileAuthState(authDir = './auth_info_multi') {
   try {
-    const url = `https://hastebin.com/raw/${sessionId}`;
-    const res = await axios.get(url);
-    
-    const dir = path.dirname(savePath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    
-    fs.writeFileSync(savePath, JSON.stringify(res.data, null, 2));
-    console.log(`✅ Session file saved to ${savePath}`);
+    const url = `https://hastebin.com/raw/${SESSION_ID}`;
+    const response = await axios.get(url);
+    const sessionData = response.data;
+
+    if (!fs.existsSync(authDir)) fs.mkdirSync(authDir, { recursive: true });
+
+    for (const filename in sessionData) {
+      fs.writeFileSync(path.join(authDir, filename), sessionData[filename], 'utf8');
+    }
+
+    console.log(`✅ Auth files restored to ${authDir}`);
   } catch (err) {
-    console.error('❌ Failed to download session:', err.message);
-    throw err;
+    console.error(`❌ Failed to restore session:`, err.message);
   }
 }
 
-module.exports = downloadSession;
+module.exports = downloadMultiFileAuthState;
