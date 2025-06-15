@@ -6,7 +6,7 @@ const http = require('http');
 const QRCode = require('qrcode');
 const { Boom } = require('@hapi/boom');
 const sqlite3 = require('sqlite3').verbose();
-const downloadMultiFileAuthState = require('./session'); 
+const { downloadMultiFileAuthState } = require('./session'); 
 
 // ===== CONFIGURATION ===== //
 const BOT_PREFIX = '.';
