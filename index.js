@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useSingleFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
@@ -7,54 +7,51 @@ const QRCode = require('qrcode');
 const { Boom } = require('@hapi/boom');
 const sqlite3 = require('sqlite3').verbose();
 
-// ===== CONFIGURATION ===== //
 const BOT_PREFIX = '.';
-const AUTH_FOLDER = './auth_info_multi';
+const SESSION_FILE = './ab-session.json';
 const PLUGIN_FOLDER = './plugins';
 const PORT = process.env.PORT || 1000;
-// ========================= //
+
 let latestQR = '';
 let botStatus = 'disconnected';
 let presenceInterval = null;
 
 const db = new sqlite3.Database('./session.db');
 
-db.run(`CREATE TABLE IF NOT EXISTS sessions (
-    filename TEXT PRIMARY KEY,
+db.run(`CREATE TABLE IF NOT EXISTS session_file (
+    id INTEGER PRIMARY KEY,
     content TEXT
-);`, (err) => {
+);`, async (err) => {
     if (err) {
-        console.error("Failed to create sessions table:", err);
+        console.error("Failed to create session table:", err);
         process.exit(1);
     }
+
+    await restoreSession();
     startBot();
 });
 
-function restoreAuthFiles() {
+function restoreSession() {
     return new Promise((resolve) => {
-        db.all("SELECT * FROM sessions", (err, rows) => {
+        db.get("SELECT content FROM session_file WHERE id = 1", (err, row) => {
             if (err) return console.error("DB restore error:", err);
-            if (!fs.existsSync(AUTH_FOLDER)) fs.mkdirSync(AUTH_FOLDER);
-            rows.forEach(row => {
-                fs.writeFileSync(path.join(AUTH_FOLDER, row.filename), row.content, 'utf8');
-            });
+            if (row?.content) {
+                fs.writeFileSync(SESSION_FILE, row.content, 'utf8');
+            }
             resolve();
         });
     });
 }
 
-function saveAuthFilesToDB() {
-    fs.readdirSync(AUTH_FOLDER).forEach(file => {
-        const filePath = path.join(AUTH_FOLDER, file);
-        const content = fs.readFileSync(filePath, 'utf8');
-        db.run("INSERT OR REPLACE INTO sessions (filename, content) VALUES (?, ?)", [file, content]);
-    });
+function saveSessionToDB() {
+    if (fs.existsSync(SESSION_FILE)) {
+        const content = fs.readFileSync(SESSION_FILE, 'utf8');
+        db.run("INSERT OR REPLACE INTO session_file (id, content) VALUES (1, ?)", [content]);
+    }
 }
 
 async function startBot() {
-    await restoreAuthFiles();
-
-    const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
+    const { state, saveState } = useSingleFileAuthState(SESSION_FILE);
 
     const sock = makeWASocket({
         logger: pino({ level: 'silent' }),
@@ -84,11 +81,7 @@ async function startBot() {
 
         if (connection === 'close') {
             botStatus = 'disconnected';
-
-            if (presenceInterval) {
-                clearInterval(presenceInterval);
-                presenceInterval = null;
-            }
+            if (presenceInterval) clearInterval(presenceInterval);
 
             const statusCode = (lastDisconnect?.error instanceof Boom)
                 ? lastDisconnect.error.output.statusCode
@@ -98,27 +91,23 @@ async function startBot() {
             console.log('Connection closed. Reconnecting:', shouldReconnect);
 
             if (shouldReconnect) {
-    console.log('Reconnecting in 10 seconds...');
-    setTimeout(() => startBot(), 10000);
-} else {
-    console.log('Session logged out. Cleaning up auth and session files...');
-    try {
-        if (fs.existsSync(AUTH_FOLDER)) {
-            fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
-            console.log('✅ Deleted auth_info_multi folder');
-        }
-    } catch (err) {
-        console.error(' Failed to delete auth_info_multi folder:', err);
-    }
-    db.run("DELETE FROM sessions", (err) => {
-        if (err) {
-            console.error('Failed to clear session DB:', err);
-        } else {
-            console.log('✅ Cleared session DB');
-        }
-    });
-    setTimeout(() => startBot(), 3000);
-}
+                console.log('Reconnecting in 10 seconds...');
+                setTimeout(() => startBot(), 10000);
+            } else {
+                console.log('Session logged out. Cleaning up...');
+                try {
+                    if (fs.existsSync(SESSION_FILE)) fs.unlinkSync(SESSION_FILE);
+                } catch (err) {
+                    console.error('Failed to delete session file:', err);
+                }
+
+                db.run("DELETE FROM session_file", (err) => {
+                    if (err) console.error('Failed to clear session DB:', err);
+                    else console.log('✅ Cleared session DB');
+                });
+
+                setTimeout(() => startBot(), 3000);
+            }
         } else if (connection === 'open') {
             botStatus = 'connected';
             console.log('Bot is connected');
@@ -141,8 +130,8 @@ async function startBot() {
     });
 
     sock.ev.on('creds.update', async () => {
-        await saveCreds();
-        saveAuthFilesToDB();
+        await saveState();
+        saveSessionToDB();
     });
 
     const plugins = new Map();
@@ -162,15 +151,12 @@ async function startBot() {
 
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
         if (type !== 'notify') return;
-
         const msg = messages[0];
         if (!msg.message || msg.key.fromMe) return;
-
         const from = msg.key.remoteJid;
 
         try {
             const body = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
-
             if (body.startsWith(BOT_PREFIX)) {
                 const args = body.slice(BOT_PREFIX.length).trim().split(/\s+/);
                 const commandName = args.shift().toLowerCase();
@@ -195,7 +181,6 @@ async function startBot() {
                     }
                 }
             }
-
         } catch (err) {
             if (err.message?.includes("Bad MAC")) {
                 console.warn("Ignored Bad MAC decryption error from:", from);
