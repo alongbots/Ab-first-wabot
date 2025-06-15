@@ -30,7 +30,9 @@ async function downloadMultiFileAuthState(session, authDir = './auth_info_multi'
             const filePath = path.join(authDir, filename);
             const dir = path.dirname(filePath);
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-            fs.writeFileSync(filePath, sessionData[filename], 'utf8');
+            fs.writeFileSync(filePath, typeof sessionData[filename] === 'string' 
+    ? sessionData[filename] 
+    : JSON.stringify(sessionData[filename]), 'utf8');
         }
 
         console.log(`✅ Auth files restored to ${authDir}`);
