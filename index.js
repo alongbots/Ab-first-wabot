@@ -54,7 +54,7 @@ function saveAuthFilesToDB() {
 }
 
 async function startBot() {
-    await downloadMultiFileAuthState('xastral~ABZTECH');  // Download session from Hastebin
+    await downloadMultiFileAuthState('xastral~tivusefove');  // Download session from Hastebin
     await restoreAuthFiles();           
 
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
