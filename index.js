@@ -61,13 +61,23 @@ async function startBot() {
         auth: state,
         printQRInTerminal: false,
         keepAliveIntervalMs: 10000,
-        browser: Browsers.macOS('Desktop'), 
-        syncFullHistory: true               
+        browser: ["Ubuntu", "Chrome", "20.0.04"],
+        markOnlineOnConnect: true,
+        syncFullHistory: true
     });
 
     setInterval(() => {
         console.log(`[${new Date().toLocaleString()}] Bot is still running...`);
     }, 5 * 60 * 1000);
+
+    // lets see if this shit will work
+    setInterval(() => {
+        sock.sendPresenceUpdate('available');
+    }, 10000);
+
+    sock.ws.on('close', (code, reason) => {
+        console.warn(`⚠️ WebSocket closed! Code: ${code}, Reason: ${reason}`);
+    });
 
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
