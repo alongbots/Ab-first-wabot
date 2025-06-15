@@ -98,11 +98,27 @@ async function startBot() {
             console.log('Connection closed. Reconnecting:', shouldReconnect);
 
             if (shouldReconnect) {
-                console.log('Reconnecting in 10 seconds...');
-                setTimeout(() => startBot(), 10000);
-            } else {
-                console.log('Session logged out. Delete auth_info_multi and DB to re-authenticate.');
-            }
+    console.log('Reconnecting in 10 seconds...');
+    setTimeout(() => startBot(), 10000);
+} else {
+    console.log('Session logged out. Cleaning up auth and session files...');
+    try {
+        if (fs.existsSync(AUTH_FOLDER)) {
+            fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
+            console.log('✅ Deleted auth_info_multi folder');
+        }
+    } catch (err) {
+        console.error(' Failed to delete auth_info_multi folder:', err);
+    }
+    db.run("DELETE FROM sessions", (err) => {
+        if (err) {
+            console.error('Failed to clear session DB:', err);
+        } else {
+            console.log('✅ Cleared session DB');
+        }
+    });
+    setTimeout(() => startBot(), 3000);
+}
         } else if (connection === 'open') {
             botStatus = 'connected';
             console.log('Bot is connected');
