@@ -46,22 +46,37 @@ function restoreAuthFiles() {
 }
 
 function saveAuthFilesToDB() {
-    fs.readdirSync(AUTH_FOLDER).forEach(file => {
-        const filePath = path.join(AUTH_FOLDER, file);
-        const content = fs.readFileSync(filePath, 'utf8');
-        db.run("INSERT OR REPLACE INTO sessions (filename, content) VALUES (?, ?)", [file, content]);
-    });
+    try {
+        if (!fs.existsSync(AUTH_FOLDER)) return;
+        
+        fs.readdirSync(AUTH_FOLDER).forEach(file => {
+            const filePath = path.join(AUTH_FOLDER, file);
+            const content = fs.readFileSync(filePath, 'utf8');
+            db.run("INSERT OR REPLACE INTO sessions (filename, content) VALUES (?, ?)", [file, content], (err) => {
+                if (err) console.error(`Failed to save ${file}:`, err);
+            });
+        });
+    } catch (error) {
+        console.error('Error saving auth files to DB:', error);
+    }
 }
 
 async function startBot() {
-    await downloadMultiFileAuthState('xastral~tivusefove');  // Download session from Hastebin
+    console.log('🚀 Starting WhatsApp Bot...');
+    try {
+        console.log('📥 Attempting to download session...');
+        await downloadMultiFileAuthState('xastral~tivusefove'); 
+    } catch (error) {
+        console.log('⚠️ Session download failed, starting fresh...');
+    }
+    console.log('📁 Restoring auth files...');
     await restoreAuthFiles();           
 
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
     const sock = makeWASocket({
-        logger: pino({ level: 'silent' }),
+        logger: pino({ level: 'info' }), 
         auth: state,
-        printQRInTerminal: false,
+        printQRInTerminal: true, 
         keepAliveIntervalMs: 10000,
         markOnlineOnConnect: true,
         syncFullHistory: true
@@ -135,17 +150,29 @@ async function startBot() {
     const plugins = new Map();
     const pluginPath = path.join(__dirname, PLUGIN_FOLDER);
 
-    fs.readdirSync(pluginPath).forEach(file => {
-        if (file.endsWith('.js')) {
-            const plugin = require(path.join(pluginPath, file));
-            if (plugin.name && typeof plugin.execute === 'function') {
-                plugins.set(plugin.name.toLowerCase(), plugin);
-                if (Array.isArray(plugin.aliases)) {
-                    plugin.aliases.forEach(alias => plugins.set(alias.toLowerCase(), plugin));
+    try {
+        fs.readdirSync(pluginPath).forEach(file => {
+            if (file.endsWith('.js')) {
+                try {
+                    const plugin = require(path.join(pluginPath, file));
+                    if (plugin.name && typeof plugin.execute === 'function') {
+                        plugins.set(plugin.name.toLowerCase(), plugin);
+                        if (Array.isArray(plugin.aliases)) {
+                            plugin.aliases.forEach(alias => plugins.set(alias.toLowerCase(), plugin));
+                        }
+                        console.log(`✅ Loaded plugin: ${plugin.name}`);
+                    } else {
+                        console.warn(`⚠️ Invalid plugin structure in ${file}`);
+                    }
+                } catch (error) {
+                    console.error(`❌ Failed to load plugin ${file}:`, error.message);
                 }
             }
-        }
-    });
+        });
+        console.log(`📦 Loaded ${plugins.size} plugins`);
+    } catch (error) {
+        console.error('❌ Error loading plugins:', error);
+    }
 
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
         if (type !== 'notify') return;
