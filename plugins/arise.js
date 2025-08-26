@@ -6,15 +6,12 @@ module.exports = {
 
     async execute() {},
 
-    async onMessage(sock, msg) {
-        if (!msg.message || msg.key.fromMe) return;
-
-        const from = msg.key.remoteJid;
-        const body = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
+    async onMessage(sock, m) {
+        if (m.isBot || !m.text) return;
 
         const triggerRegex = /\b(arise|test|bot|rise)\b/i;
 
-        if (triggerRegex.test(body.trim())) {
+        if (triggerRegex.test(m.text.trim())) {
             const info = '*BOT ACTIVE AND RUNNING...*';
             const imgUrl = 'https://i.ibb.co/KpcF9Gnf/4f41074aab5a035fcac5e111911b2456-1.jpg';
             const author = 'ABZTech';
@@ -24,8 +21,7 @@ module.exports = {
             try {
                 const thumbnailBuffer = (await axios.get(imgUrl, { responseType: 'arraybuffer' })).data;
 
-                await sock.sendMessage(from, {
-                    text: info,
+                await m.send(info, {
                     contextInfo: {
                         forwardingScore: 999,
                         isForwarded: true,
@@ -38,9 +34,10 @@ module.exports = {
                             sourceUrl
                         }
                     }
-                }, { quoted: msg });
+                });
             } catch (err) {
                 console.error('❌ Error sending preview message:', err);
+                await m.reply('⚠️ Failed to send auto-response.');
             }
         }
     }
