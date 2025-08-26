@@ -4,8 +4,8 @@ module.exports = {
     name: 'uptime',
     aliases: ['up'],
     description: 'Check how long the bot has been running.',
-    async execute(sock, msg) {
-        const from = msg.key.remoteJid;
+
+    async execute(sock, m) {
         const uptime = process.uptime(); 
 
         const hours = Math.floor(uptime / 3600);
@@ -14,6 +14,6 @@ module.exports = {
 
         const formattedTime = `${hours}h ${minutes}m ${seconds}s`;
 
-        await sock.sendMessage(from, { text: `⏱️ Bot Uptime: ${formattedTime}` }, { quoted: msg });
+        await m.reply(`⏱️ Bot Uptime: ${formattedTime}`);
     }
 };
