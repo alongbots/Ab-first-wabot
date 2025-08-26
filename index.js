@@ -12,7 +12,7 @@ const { downloadMultiFileAuthState } = require('./session');
 const BOT_PREFIX = '.';
 const AUTH_FOLDER = './auth_info_multi';
 const PLUGIN_FOLDER = './plugins';
-const PORT = process.env.PORT || 1000;
+const PORT = process.env.PORT || 3000;
 // ========================= //
 
 let latestQR = '';
@@ -31,7 +31,6 @@ db.run(`CREATE TABLE IF NOT EXISTS sessions (
     }
     startBot();
 });
-
 function restoreAuthFiles() {
     return new Promise((resolve) => {
         db.all("SELECT * FROM sessions", (err, rows) => {
@@ -60,16 +59,59 @@ function saveAuthFilesToDB() {
         console.error('Error saving auth files to DB:', error);
     }
 }
+function serializeMessage(sock, msg) {
+    const from = msg.key.remoteJid;
+    const isGroup = from.endsWith('@g.us');
+    const sender = msg.key.fromMe
+        ? sock.user.id
+        : isGroup
+            ? msg.key.participant
+            : from;
 
+    const body =
+        msg.message?.conversation ||
+        msg.message?.extendedTextMessage?.text ||
+        msg.message?.imageMessage?.caption ||
+        msg.message?.videoMessage?.caption ||
+        msg.message?.buttonsResponseMessage?.selectedButtonId ||
+        msg.message?.listResponseMessage?.singleSelectReply?.selectedRowId ||
+        '';
+
+    const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage || null;
+
+    return {
+        id: msg.key.id,
+        from,
+        sender,
+        isGroup,
+        body,
+        type: Object.keys(msg.message || {})[0],
+        quoted,
+        reply: async (text) => {
+            return await sock.sendMessage(from, { text }, { quoted: msg });
+        },
+        send: async (jid, text) => {
+            return await sock.sendMessage(jid, { text });
+        },
+        react: async (emoji) => {
+            return await sock.sendMessage(from, { react: { text: emoji, key: msg.key } });
+        },
+        download: async () => {
+            if (
+                msg.message?.imageMessage ||
+                msg.message?.videoMessage ||
+                msg.message?.documentMessage ||
+                msg.message?.audioMessage
+            ) {
+                const buffer = await sock.downloadMediaMessage(msg);
+                return buffer;
+            }
+            return null;
+        }
+    };
+}
 async function startBot() {
     console.log('🚀 Starting WhatsApp Bot...');
-    try {
-        console.log('📥 Attempting to download session...');
-        await downloadMultiFileAuthState('xastral~tivusefove'); 
-    } catch (error) {
-        console.log('⚠️ Session download failed, starting fresh...');
-    }
-    console.log('📁 Restoring auth files...');
     await restoreAuthFiles();           
 
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
@@ -146,7 +188,6 @@ async function startBot() {
         await saveCreds();
         saveAuthFilesToDB();
     });
-
     const plugins = new Map();
     const pluginPath = path.join(__dirname, PLUGIN_FOLDER);
 
@@ -173,35 +214,31 @@ async function startBot() {
     } catch (error) {
         console.error('❌ Error loading plugins:', error);
     }
-
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
         if (type !== 'notify') return;
 
-        const msg = messages[0];
-        if (!msg.message || msg.key.fromMe) return;
+        const rawMsg = messages[0];
+        if (!rawMsg.message || rawMsg.key.fromMe) return;
 
-        const from = msg.key.remoteJid;
-        const body = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
-
-        if (body.startsWith(BOT_PREFIX)) {
-            const args = body.slice(BOT_PREFIX.length).trim().split(/\s+/);
+        const m = serializeMessage(sock, rawMsg);
+        if (m.body.startsWith(BOT_PREFIX)) {
+            const args = m.body.slice(BOT_PREFIX.length).trim().split(/\s+/);
             const commandName = args.shift().toLowerCase();
             const plugin = plugins.get(commandName);
 
             if (plugin) {
                 try {
-                    await plugin.execute(sock, msg, args);
+                    await plugin.execute(sock, m, args); 
                 } catch (err) {
                     console.error(`❌ Plugin error (${commandName}):`, err);
-                    await sock.sendMessage(from, { text: 'Error running command.' }, { quoted: msg });
+                    await m.reply('Error running command.');
                 }
             }
         }
-
         for (const plugin of plugins.values()) {
             if (typeof plugin.onMessage === 'function') {
                 try {
-                    await plugin.onMessage(sock, msg);
+                    await plugin.onMessage(sock, m);
                 } catch (err) {
                     console.error(`❌ onMessage error (${plugin.name}):`, err);
                 }
@@ -209,7 +246,6 @@ async function startBot() {
         }
     });
 }
-
 http.createServer((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     if (url.pathname === '/qr') {
