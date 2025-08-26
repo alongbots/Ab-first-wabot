@@ -5,52 +5,39 @@ module.exports = {
     name: 'chatbot',
     description: 'Toggle AI Chatbot mode',
 
-    async execute(sock, msg, args) {
-        const from = msg.key.remoteJid;
-
-        if (chatbotUsers.has(from)) {
-            chatbotUsers.delete(from);
-            await sock.sendMessage(from, 
-                { text: '🤖 Chatbot *disabled* for this chat.' }, 
-                { quoted: msg }
-            );
+    async execute(sock, m, args) {
+        if (chatbotUsers.has(m.chat)) {
+            chatbotUsers.delete(m.chat);
+            await m.reply('🤖 Chatbot *disabled* for this chat.');
+            await m.react("❌");
         } else {
-            chatbotUsers.add(from);
-            await sock.sendMessage(from, 
-                { text: '🤖 Chatbot *enabled*! I will now respond to messages in this chat.' }, 
-                { quoted: msg }
-            );
+            chatbotUsers.add(m.chat);
+            await m.reply('🤖 Chatbot *enabled*! I will now respond to messages in this chat.');
+            await m.react("✅");
         }
     },
 
-    async onMessage(sock, msg) {
-        const from = msg.key.remoteJid;
-        const isBot = msg.key.fromMe;
-        const body = msg.message?.conversation || 
-                    msg.message?.extendedTextMessage?.text || '';
-        if (isBot || !chatbotUsers.has(from) || !body.trim()) return;
+    async onMessage(sock, m) {
+        if (m.isBot || !chatbotUsers.has(m.chat) || !m.text) return;
 
         try {
             const response = await fetch(DEFAULT_AI_ENDPOINT, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    messages: [{ role: 'user', content: body }]
+                    messages: [{ role: 'user', content: m.text }]
                 })
             });
 
             const data = await response.json();
-            const reply = data.choices?.[0]?.message?.content || 
-                         "🤖 Sorry, I couldn't process your request.";
+            const reply = data.choices?.[0]?.message?.content 
+                        || "🤖 Sorry, I couldn't process your request.";
 
-            await sock.sendMessage(from, { text: reply }, { quoted: msg });
+            await m.reply(reply);
 
         } catch (err) {
             console.error('Chatbot error:', err);
-            await sock.sendMessage(from, 
-                { text: '⚠️ An error occurred while processing your message.' }, 
-                { quoted: msg }
-            );
+            await m.reply('⚠️ An error occurred while processing your message.');
         }
     }
 };
