@@ -2,16 +2,18 @@ const axios = require('axios');
 
 module.exports = {
     name: 'autorise',
-    description: 'Auto reply to trigger keywords like "arise", "test", "bot", etc.',
+    description: 'Auto reply when a message *starts with* trigger keywords like "arise", "test", "bot", etc.',
 
     async execute() {},
 
     async onMessage(sock, m) {
         if (m.isBot || !m.text) return;
 
-        const triggerRegex = /\b(arise|test|bot|rise)\b/i;
+        const text = m.text.trim().toLowerCase();
+        const triggers = ['arise', 'test', 'bot', 'rise'];
+        const isTriggered = triggers.some(word => text.startsWith(word));
 
-        if (triggerRegex.test(m.text.trim())) {
+        if (isTriggered) {
             const info = '*BOT ACTIVE AND RUNNING...*';
             const imgUrl = 'https://i.ibb.co/KpcF9Gnf/4f41074aab5a035fcac5e111911b2456-1.jpg';
             const author = 'ABZTech';
