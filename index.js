@@ -31,6 +31,7 @@ db.run(`CREATE TABLE IF NOT EXISTS sessions (
     }
     startBot();
 });
+
 function restoreAuthFiles() {
     return new Promise((resolve) => {
         db.all("SELECT * FROM sessions", (err, rows) => {
@@ -85,17 +86,24 @@ function serializeMessage(sock, msg) {
         sender,
         isGroup,
         body,
+        text: body,
         type: Object.keys(msg.message || {})[0],
         quoted,
-        reply: async (text) => {
-            return await sock.sendMessage(from, { text }, { quoted: msg });
+        reply: async (text, options = {}) => {
+            return await sock.sendMessage(from, { text, ...options }, { quoted: msg });
         },
-        send: async (jid, text) => {
-            return await sock.sendMessage(jid, { text });
+        send: async (content, options = {}) => {
+            if (typeof content === 'string') {
+                return await sock.sendMessage(from, { text: content, ...options }, { quoted: msg });
+            } else if (typeof content === 'object') {
+                return await sock.sendMessage(from, content, { quoted: msg });
+            }
         },
+
         react: async (emoji) => {
             return await sock.sendMessage(from, { react: { text: emoji, key: msg.key } });
         },
+
         download: async () => {
             if (
                 msg.message?.imageMessage ||
@@ -110,6 +118,7 @@ function serializeMessage(sock, msg) {
         }
     };
 }
+
 async function startBot() {
     console.log('🚀 Starting WhatsApp Bot...');
     await restoreAuthFiles();           
@@ -188,6 +197,7 @@ async function startBot() {
         await saveCreds();
         saveAuthFilesToDB();
     });
+
     const plugins = new Map();
     const pluginPath = path.join(__dirname, PLUGIN_FOLDER);
 
@@ -214,6 +224,7 @@ async function startBot() {
     } catch (error) {
         console.error('❌ Error loading plugins:', error);
     }
+
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
         if (type !== 'notify') return;
 
@@ -221,6 +232,7 @@ async function startBot() {
         if (!rawMsg.message || rawMsg.key.fromMe) return;
 
         const m = serializeMessage(sock, rawMsg);
+
         if (m.body.startsWith(BOT_PREFIX)) {
             const args = m.body.slice(BOT_PREFIX.length).trim().split(/\s+/);
             const commandName = args.shift().toLowerCase();
@@ -235,6 +247,7 @@ async function startBot() {
                 }
             }
         }
+
         for (const plugin of plugins.values()) {
             if (typeof plugin.onMessage === 'function') {
                 try {
@@ -246,6 +259,7 @@ async function startBot() {
         }
     });
 }
+
 http.createServer((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     if (url.pathname === '/qr') {
