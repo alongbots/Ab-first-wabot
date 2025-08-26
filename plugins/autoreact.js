@@ -4,12 +4,9 @@ module.exports = {
 
     async execute() {},
 
-    async onMessage(sock, msg) {
+    async onMessage(sock, m) {
         try {
-            if (!msg.message || msg.key.fromMe) return;
-
-            const from = msg.key.remoteJid;
-            const sender = msg.key.participant || msg.key.remoteJid;
+            if (m.isBot || !m.message) return;
 
             const owners = [
                 '25770239992037@lid',
@@ -18,13 +15,8 @@ module.exports = {
 
             const reactionEmoji = '✨';
 
-            if (owners.includes(sender)) {
-                await sock.sendMessage(from, {
-                    react: {
-                        text: reactionEmoji,
-                        key: msg.key,
-                    },
-                });
+            if (owners.includes(m.sender)) {
+                await m.react(reactionEmoji);
             }
         } catch (err) {
             console.error('❌ Auto-react error:', err);
