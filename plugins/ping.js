@@ -5,9 +5,7 @@ module.exports = {
     aliases: ['status'],
     description: 'Check bot latency and system status',
 
-    async execute(sock, msg, args) {
-        const from = msg.key.remoteJid;
-
+    async execute(sock, m, args) {
         const uptime = os.uptime();
         const totalMem = (os.totalmem() / 1024 / 1024).toFixed(2);
         const freeMem = (os.freemem() / 1024 / 1024).toFixed(2);
@@ -27,6 +25,6 @@ module.exports = {
 └────✨ *ABZTech*
         `.trim();
 
-        await sock.sendMessage(from, { text: statusMessage }, { quoted: msg });
+        await m.reply(statusMessage); 
     }
 };
