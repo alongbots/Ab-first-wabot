@@ -1,30 +1,39 @@
-const os = require('os');
+const axios = require('axios');
 
 module.exports = {
     name: 'ping',
-    aliases: ['status'],
-    description: 'Check bot latency and system status',
+    aliases: ['speed', 'latency'],
+    description: 'Check bot response speed',
 
     async execute(sock, m, args) {
-        const uptime = os.uptime();
-        const totalMem = (os.totalmem() / 1024 / 1024).toFixed(2);
-        const freeMem = (os.freemem() / 1024 / 1024).toFixed(2);
-        const platform = os.platform();
-        const cpuCount = os.cpus().length;
-        const arch = os.arch();
+        const start = Date.now();
+        await m.reply('Pinging...');
+        const latency = Date.now() - start;
+        const info = `> Latency: ${latency} ms`;
+        const imgUrl = 'https://i.ibb.co/KpcF9Gnf/4f41074aab5a035fcac5e111911b2456-1.jpg';
+        const author = 'ABZTech';
+        const botname = 'ABZTech Bot';
+        const sourceUrl = 'https://ab-tech-api.vercel.app/';
 
-        const statusMessage = `
-┌───⏱️ *pong!*
-│
-├ 🟢 *Status:* Online & Active
-├ 🕰️ *Uptime:* ${(uptime / 60).toFixed(2)} mins
-├ 🧠 *CPU Cores:* ${cpuCount}
-├ 🖥️ *Platform:* ${platform} (${arch})
-├ 📦 *RAM:* ${freeMem} MB Free / ${totalMem} MB Total
-│
-└────✨ *ABZTech*
-        `.trim();
+        try {
+            const thumbnailBuffer = (await axios.get(imgUrl, { responseType: 'arraybuffer' })).data;
 
-        await m.reply(statusMessage); 
+            await m.send(info, {
+                contextInfo: {
+                    forwardingScore: 999,
+                    isForwarded: true,
+                    externalAdReply: {
+                        title: author,
+                        body: botname,
+                        thumbnail: thumbnailBuffer,
+                        mediaType: 1,
+                        renderLargerThumbnail: true,
+                        sourceUrl
+                    }
+                }
+            });
+        } catch (err) {
+            console.error('Error sending ping info:', err);
+        }
     }
 };
