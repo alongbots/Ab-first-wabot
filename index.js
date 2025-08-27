@@ -1,12 +1,10 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const QRCode = require('qrcode');
 const { Boom } = require('@hapi/boom');
-const sqlite3 = require('sqlite3').verbose();
-const { downloadMultiFileAuthState } = require('./session'); 
 
 // ===== CONFIGURATION ===== //
 const BOT_PREFIX = '.';
@@ -19,7 +17,7 @@ let latestQR = '';
 let botStatus = 'disconnected';
 let presenceInterval = null;
 
-const db = new sqlite3.Database('./session.db');
+const db = new (require('sqlite3').verbose()).Database('./session.db');
 
 db.run(`CREATE TABLE IF NOT EXISTS sessions (
     filename TEXT PRIMARY KEY,
@@ -48,7 +46,6 @@ function restoreAuthFiles() {
 function saveAuthFilesToDB() {
     try {
         if (!fs.existsSync(AUTH_FOLDER)) return;
-        
         fs.readdirSync(AUTH_FOLDER).forEach(file => {
             const filePath = path.join(AUTH_FOLDER, file);
             const content = fs.readFileSync(filePath, 'utf8');
@@ -60,6 +57,7 @@ function saveAuthFilesToDB() {
         console.error('Error saving auth files to DB:', error);
     }
 }
+
 function serializeMessage(sock, msg) {
     const from = msg.key.remoteJid;
     const isGroup = from.endsWith('@g.us');
@@ -74,11 +72,64 @@ function serializeMessage(sock, msg) {
         msg.message?.extendedTextMessage?.text ||
         msg.message?.imageMessage?.caption ||
         msg.message?.videoMessage?.caption ||
+        msg.message?.documentMessage?.caption ||
         msg.message?.buttonsResponseMessage?.selectedButtonId ||
         msg.message?.listResponseMessage?.singleSelectReply?.selectedRowId ||
         '';
 
-    const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage || null;
+    const type = Object.keys(msg.message || {})[0] || '';
+    const isMedia = ['imageMessage','videoMessage','documentMessage','audioMessage'].includes(type);
+    const mediaType = type.replace('Message','').toLowerCase();
+    const mimetype = msg.message?.[type]?.mimetype || null;
+
+    let quoted = null;
+    const ctxInfo = msg.message?.extendedTextMessage?.contextInfo;
+    if (ctxInfo?.quotedMessage) {
+        const qMsg = ctxInfo.quotedMessage;
+        const qType = Object.keys(qMsg)[0] || '';
+        const qIsMedia = ['imageMessage','videoMessage','documentMessage','audioMessage'].includes(qType);
+        const qMimetype = qMsg?.[qType]?.mimetype || null;
+
+        quoted = {
+            key: {
+                remoteJid: from,
+                id: ctxInfo.stanzaId,
+                participant: ctxInfo.participant || from
+            },
+            message: qMsg,
+            isMedia: qIsMedia,
+            mediaType: qType.replace('Message','').toLowerCase(),
+            mimetype: qMimetype,
+            download: async () => {
+                return await downloadMediaMessage(
+                    { message: qMsg, key: { ...msg.key } },
+                    'buffer',
+                    {},
+                    sock
+                );
+            }
+        };
+    } else if (msg.quoted?.message) {
+        const qMsg = msg.quoted.message;
+        const qType = Object.keys(qMsg)[0] || '';
+        const qIsMedia = ['imageMessage','videoMessage','documentMessage','audioMessage'].includes(qType);
+        const qMimetype = qMsg?.[qType]?.mimetype || null;
+
+        quoted = {
+            ...msg.quoted,
+            isMedia: qIsMedia,
+            mediaType: qType.replace('Message','').toLowerCase(),
+            mimetype: qMimetype,
+            download: async () => {
+                return await downloadMediaMessage(
+                    { message: qMsg, key: { ...msg.key } },
+                    'buffer',
+                    {},
+                    sock
+                );
+            }
+        };
+    }
 
     return {
         id: msg.key.id,
@@ -87,7 +138,11 @@ function serializeMessage(sock, msg) {
         isGroup,
         body,
         text: body,
-        type: Object.keys(msg.message || {})[0],
+        type,
+        mtype: type,
+        isMedia,
+        mediaType,
+        mimetype,
         quoted,
         reply: async (text, options = {}) => {
             return await sock.sendMessage(from, { text, ...options }, { quoted: msg });
@@ -99,35 +154,41 @@ function serializeMessage(sock, msg) {
                 return await sock.sendMessage(from, content, { quoted: msg });
             }
         },
-
         react: async (emoji) => {
             return await sock.sendMessage(from, { react: { text: emoji, key: msg.key } });
         },
-
         download: async () => {
-            if (
-                msg.message?.imageMessage ||
-                msg.message?.videoMessage ||
-                msg.message?.documentMessage ||
-                msg.message?.audioMessage
-            ) {
-                const buffer = await sock.downloadMediaMessage(msg);
-                return buffer;
+            let targetMsg = msg;
+
+            if (isMedia) {
+               
+                targetMsg = msg;
+            } else if (quoted && quoted.isMedia) {
+
+                targetMsg = quoted;
+            } else {
+                return null;
             }
-            return null;
+
+            return await downloadMediaMessage(
+                { message: targetMsg.message, key: { ...msg.key } },
+                'buffer',
+                {},
+                sock
+            );
         }
     };
 }
 
 async function startBot() {
     console.log('🚀 Starting WhatsApp Bot...');
-    await restoreAuthFiles();           
+    await restoreAuthFiles();
 
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
     const sock = makeWASocket({
-        logger: pino({ level: 'info' }), 
+        logger: pino({ level: 'info' }),
         auth: state,
-        printQRInTerminal: true, 
+        printQRInTerminal: true,
         keepAliveIntervalMs: 10000,
         markOnlineOnConnect: true,
         syncFullHistory: true
@@ -152,16 +213,13 @@ async function startBot() {
 
         if (connection === 'close') {
             botStatus = 'disconnected';
-
             if (presenceInterval) clearInterval(presenceInterval);
 
             const statusCode = (lastDisconnect?.error instanceof Boom)
                 ? lastDisconnect.error.output.statusCode
                 : 0;
 
-            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-
-            if (shouldReconnect) {
+            if (statusCode !== DisconnectReason.loggedOut) {
                 console.log('Reconnecting in 10 seconds...');
                 setTimeout(() => startBot(), 10000);
             } else {
@@ -240,7 +298,7 @@ async function startBot() {
 
             if (plugin) {
                 try {
-                    await plugin.execute(sock, m, args); 
+                    await plugin.execute(sock, m, args);
                 } catch (err) {
                     console.error(`❌ Plugin error (${commandName}):`, err);
                     await m.reply('Error running command.');
