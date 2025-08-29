@@ -12,8 +12,8 @@ module.exports = {
         const info = `> Latency: ${latency} ms`;
         const imgUrl = 'https://i.ibb.co/KpcF9Gnf/4f41074aab5a035fcac5e111911b2456-1.jpg';
         const author = 'ABZTech';
-        const botname = 'ABZTech Bot';
-        const sourceUrl = 'https://ab-tech-api.vercel.app/';
+        const botname = 'ABZTech ᴍᴜʟᴛɪᴅᴇᴠɪᴄᴇ';
+        const sourceUrl = 'https://abztech.xyz/';
 
         try {
             const thumbnailBuffer = (await axios.get(imgUrl, { responseType: 'arraybuffer' })).data;
