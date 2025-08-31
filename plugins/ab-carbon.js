@@ -1,34 +1,30 @@
 const axios = require('axios');
 
 module.exports = {
-  name: 'carbon',
-  description: 'Generate a stylized code snippet using AB Carbon',
-  async execute(sock, m, args) {
-    let text = args.join(' ');
-    if (!text && m.quoted?.message) {
-      text =
-        m.quoted.message.conversation ||
-        m.quoted.message.extendedTextMessage?.text ||
-        '';
+    name: "carbon",
+    aliases: ["carbonify"],
+    description: "Generate a stylized Carbon image from text",
+    
+    async execute(sock, m, args) {
+        if (!args || args.length === 0) {
+            return await m.send("❌ Please provide some text to generate Carbon.");
+        }
+
+        const text = args.join(" ");
+        const theme = "seti";
+
+        try {
+            const res = await axios.get(`https://ab-carbon.abrahamdw882.workers.dev/?q=${encodeURIComponent(text)}&theme=${theme}`, {
+                responseType: 'arraybuffer'
+            });
+            const buffer = Buffer.from(res.data, 'binary');
+            await sock.sendMessage(m.from, {
+                image: buffer,
+                caption: `Here's your stylized Carbon snippet:`
+            }, { quoted: m._raw });
+
+        } catch (err) {
+            await m.send(`❌ Error generating Carbon image:\n\`\`\`\n${err.message}\n\`\`\``);
+        }
     }
-
-    if (!text) return await m.reply('Please provide text or reply to a message.');
-
-    const theme = 'seti';
-
-    try {
-      const response = await axios.get(`https://ab-carbon.abrahamdw882.workers.dev/?q=${encodeURIComponent(text)}&theme=${theme}`, {
-        responseType: 'arraybuffer'
-      });
-      const buffer = Buffer.from(response.data, 'binary');
-      await sock.sendMessage(m.from, {
-        image: buffer,
-        caption: "Here's your stylized code snippet:"
-      }, { quoted: m });
-
-    } catch (err) {
-      console.error('Error generating carbon image:', err);
-      await m.reply('Failed to generate the stylized code snippet. Please try again later.');
-    }
-  }
 };
