@@ -1,10 +1,12 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, generateWAMessageFromContent} = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const QRCode = require('qrcode');
 const { Boom } = require('@hapi/boom');
+
+global.generateWAMessageFromContent = generateWAMessageFromContent;
 
 // ===== CONFIGURATION ===== //
 const BOT_PREFIX = '.';
