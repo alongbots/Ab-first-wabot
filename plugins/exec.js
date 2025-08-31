@@ -16,9 +16,7 @@ module.exports = {
   async execute() {},
 
   async onMessage(sock, m) {
-
     if (!m.text || m.isBot) return;
-
     if (!m.text.startsWith('>')) return;
     if (sentOnce.has(m.id)) return;
     sentOnce.add(m.id);
@@ -36,16 +34,32 @@ module.exports = {
     const sourceUrl = 'https://ab-tech-api.vercel.app/';
 
     try {
+      const sandbox = {
+        sock,
+        m,
+        axios,
+        util,
+        console,
+        generateWAMessageFromContent: global.generateWAMessageFromContent
+      };
+
+      const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
+
       let result;
       if (code.includes('await') || code.includes('\n')) {
-        result = await eval(`(async () => { ${code} })()`);
+        result = await new AsyncFunction(...Object.keys(sandbox), code)(...Object.values(sandbox));
       } else {
-        result = await eval(code);
+        result = await new Function(...Object.keys(sandbox), `return ${code}`)(...Object.values(sandbox));
       }
 
-      const output = typeof result === 'string' ? result : util.inspect(result, { depth: 1 });
-      const text = `☑️ Result:\n\`\`\`\n${output}\n\`\`\``;
+      const output =
+        result === undefined
+          ? 'undefined'
+          : typeof result === 'string'
+            ? result
+            : util.inspect(result, { depth: 1 });
 
+      const text = `☑️ Result:\n\`\`\`\n${output.slice(0, 4000)}\n\`\`\``; 
       const thumbnailBuffer = (await axios.get(imgUrl, { responseType: 'arraybuffer' })).data;
 
       await m.send(`${info}\n${text}`, {
