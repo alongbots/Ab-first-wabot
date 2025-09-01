@@ -28,7 +28,7 @@ module.exports = {
             };
 
             await sock.sendMessage(m.from, pollMessage);
-            await m.reply("poll created");
+            await m.react("✔");
         } catch (err) {
             console.error(" Poll plugin error:", err);
             await m.reply(" Failed to create poll.");
