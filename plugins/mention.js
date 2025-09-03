@@ -54,15 +54,10 @@ module.exports = {
                 { quoted }
             );
 
-            await m.send({
-                react: {
-                    text: '✨',
-                    key: quoted.key
-                }
-            });
+            await m.react("✨");
 
         } catch (err) {
-            console.error(' Mention-owner plugin error:', err);
+            console.error('❌ Mention-owner plugin error:', err);
         }
     }
 };
