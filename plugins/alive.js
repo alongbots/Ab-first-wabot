@@ -8,8 +8,8 @@ module.exports = {
     async execute(sock, m) {
         try {
             const name = m.pushName || m.sender.split('@')[0];
-            const audioUrl = 'https://files.catbox.moe/6sbydx.mp3';
-            const thumbnail = 'https://telegra.ph/file/b1b157e944010efebf1d7.jpg';
+            const audioUrl = 'https://files.catbox.moe/ocfcla.mp3';
+            const thumbnail = 'https://i.ibb.co/Kp2CPXjQ/Jujutsu-Kaisen-2-Toji-Fushiguro.jpg';
             const quoted = {
                 key: {
                     fromMe: false,
