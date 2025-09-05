@@ -17,7 +17,7 @@ module.exports = {
 
             const name = m.pushName || m.sender.split('@')[0];
             const audioUrl = 'https://files.catbox.moe/t1zkqo.mp3';
-            const thumbnail = 'https://files.catbox.moe/ug3qys.jpg';
+            const thumbnail = 'https://i.ibb.co/rfsYsGn1/Ayanokouji-1.jpg';
             const quoted = {
                 key: {
                     fromMe: false,
