@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, generateWAMessageFromContent } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, generateWAMessageFromContent} = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
@@ -80,8 +80,8 @@ function serializeMessage(sock, msg) {
         '';
 
     const type = Object.keys(msg.message || {})[0] || '';
-    const isMedia = ['imageMessage', 'videoMessage', 'documentMessage', 'audioMessage'].includes(type);
-    const mediaType = type.replace('Message', '').toLowerCase();
+    const isMedia = ['imageMessage','videoMessage','documentMessage','audioMessage'].includes(type);
+    const mediaType = type.replace('Message','').toLowerCase();
     const mimetype = msg.message?.[type]?.mimetype || null;
 
     let quoted = null;
@@ -89,7 +89,7 @@ function serializeMessage(sock, msg) {
     if (ctxInfo?.quotedMessage) {
         const qMsg = ctxInfo.quotedMessage;
         const qType = Object.keys(qMsg)[0] || '';
-        const qIsMedia = ['imageMessage', 'videoMessage', 'documentMessage', 'audioMessage'].includes(qType);
+        const qIsMedia = ['imageMessage','videoMessage','documentMessage','audioMessage'].includes(qType);
         const qMimetype = qMsg?.[qType]?.mimetype || null;
 
         quoted = {
@@ -100,7 +100,7 @@ function serializeMessage(sock, msg) {
             },
             message: qMsg,
             isMedia: qIsMedia,
-            mediaType: qType.replace('Message', '').toLowerCase(),
+            mediaType: qType.replace('Message','').toLowerCase(),
             mimetype: qMimetype,
             download: async () => {
                 return await downloadMediaMessage(
@@ -114,13 +114,13 @@ function serializeMessage(sock, msg) {
     } else if (msg.quoted?.message) {
         const qMsg = msg.quoted.message;
         const qType = Object.keys(qMsg)[0] || '';
-        const qIsMedia = ['imageMessage', 'videoMessage', 'documentMessage', 'audioMessage'].includes(qType);
+        const qIsMedia = ['imageMessage','videoMessage','documentMessage','audioMessage'].includes(qType);
         const qMimetype = qMsg?.[qType]?.mimetype || null;
 
         quoted = {
             ...msg.quoted,
             isMedia: qIsMedia,
-            mediaType: qType.replace('Message', '').toLowerCase(),
+            mediaType: qType.replace('Message','').toLowerCase(),
             mimetype: qMimetype,
             download: async () => {
                 return await downloadMediaMessage(
@@ -161,9 +161,16 @@ function serializeMessage(sock, msg) {
         },
         download: async () => {
             let targetMsg = msg;
-            if (isMedia) targetMsg = msg;
-            else if (quoted && quoted.isMedia) targetMsg = quoted;
-            else return null;
+
+            if (isMedia) {
+               
+                targetMsg = msg;
+            } else if (quoted && quoted.isMedia) {
+
+                targetMsg = quoted;
+            } else {
+                return null;
+            }
 
             return await downloadMediaMessage(
                 { message: targetMsg.message, key: { ...msg.key } },
@@ -201,8 +208,6 @@ async function startBot() {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
-            console.log("⚡ New QR generated! Scan it quickly.");
-            console.log(qr); 
             QRCode.toDataURL(qr, (err, url) => {
                 if (!err) latestQR = url;
             });
@@ -216,24 +221,22 @@ async function startBot() {
                 ? lastDisconnect.error.output.statusCode
                 : 0;
 
-            console.warn("⚠️ Connection closed. Code:", statusCode);
-
-            if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
-                console.log("🗑 Session invalid/expired. Clearing and regenerating QR...");
+            if (statusCode !== DisconnectReason.loggedOut) {
+                console.log('Reconnecting in 10 seconds...');
+                setTimeout(() => startBot(), 10000);
+            } else {
+                console.log('Logged out. Cleaning up...');
                 if (fs.existsSync(AUTH_FOLDER)) fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
                 db.run("DELETE FROM sessions", (err) => {
-                    if (err) console.error("DB clear failed:", err);
-                    else console.log("✅ Session DB cleared");
+                    if (err) console.error('DB clear failed:', err);
+                    else console.log('✅ Cleared session DB');
                 });
-                setTimeout(() => startBot(), 2000);
-            } else {
-                console.log("♻️ Trying to reconnect in 5s...");
-                setTimeout(() => startBot(), 5000);
+                setTimeout(() => startBot(), 3000);
             }
 
         } else if (connection === 'open') {
             botStatus = 'connected';
-            console.log('✅ Bot is connected');
+            console.log('Bot is connected ✅');
 
             presenceInterval = setInterval(() => {
                 if (sock?.ws?.readyState === 1) {
