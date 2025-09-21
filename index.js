@@ -102,6 +102,17 @@ function serializeMessage(sock, msg) {
     const mediaType = type.replace('Message', '').toLowerCase();
     const mimetype = msg.message?.[type]?.mimetype || null;
 
+    let groupMetadata = null;
+    if (isGroup) {
+        try {
+            groupMetadata = sock.groupMetadata
+                ? await sock.groupMetadata(from)  
+                : null;
+        } catch (err) {
+            groupMetadata = null;
+        }
+    }
+
     let quoted = null;
     const ctxInfo = msg.message?.extendedTextMessage?.contextInfo;
     if (ctxInfo?.quotedMessage) {
@@ -139,6 +150,7 @@ function serializeMessage(sock, msg) {
         sender,
         pushName,
         isGroup,
+        groupMetadata,  
         body,
         text: body,
         type,
@@ -176,6 +188,7 @@ function serializeMessage(sock, msg) {
         }
     };
 }
+
 
 async function startBot() {
     console.log('🚀 Starting WhatsApp Bot...');
