@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, generateWAMessageFromContent} = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, generateWAMessageFromContent } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
@@ -9,10 +9,16 @@ const { Boom } = require('@hapi/boom');
 global.generateWAMessageFromContent = generateWAMessageFromContent;
 
 // ===== CONFIGURATION ===== //
-const BOT_PREFIX = '.';
+global.BOT_PREFIX = '.';  
 const AUTH_FOLDER = './auth_info_multi';
 const PLUGIN_FOLDER = './plugins';
 const PORT = process.env.PORT || 3000;
+
+const owners = [
+    '25770239992037@lid',
+    '233533763772@s.whatsapp.net'
+];
+global.owners = owners;
 // ========================= //
 
 let latestQR = '';
@@ -20,16 +26,24 @@ let botStatus = 'disconnected';
 let presenceInterval = null;
 
 const db = new (require('sqlite3').verbose()).Database('./session.db');
+db.serialize(() => {
+    db.run(`CREATE TABLE IF NOT EXISTS sessions (
+        filename TEXT PRIMARY KEY,
+        content TEXT
+    );`);
 
-db.run(`CREATE TABLE IF NOT EXISTS sessions (
-    filename TEXT PRIMARY KEY,
-    content TEXT
-);`, (err) => {
-    if (err) {
-        console.error("Failed to create sessions table:", err);
-        process.exit(1);
-    }
-    startBot();
+    db.run(`CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    );`);
+
+    db.get("SELECT value FROM settings WHERE key = 'prefix'", (err, row) => {
+        if (!err && row) {
+            global.BOT_PREFIX = row.value;
+            console.log(` Loaded prefix: ${global.BOT_PREFIX}`);
+        }
+        startBot();
+    });
 });
 
 function restoreAuthFiles() {
@@ -84,14 +98,10 @@ function serializeMessage(sock, msg) {
         '';
 
     const type = Object.keys(msg.message || {})[0] || '';
-    const isMedia = ['imageMessage','videoMessage','documentMessage','audioMessage','stickerMessage'].includes(type);
-    const mediaType = type.replace('Message','').toLowerCase();
+    const isMedia = ['imageMessage', 'videoMessage', 'documentMessage', 'audioMessage', 'stickerMessage'].includes(type);
+    const mediaType = type.replace('Message', '').toLowerCase();
     const mimetype = msg.message?.[type]?.mimetype || null;
 
-    let groupMetadata = null;
-    if (isGroup && sock.groupMetadata) {
-        groupMetadata = sock.groupMetadata(from).catch(() => null);
-    }
     let quoted = null;
     const ctxInfo = msg.message?.extendedTextMessage?.contextInfo;
     if (ctxInfo?.quotedMessage) {
@@ -106,11 +116,11 @@ function serializeMessage(sock, msg) {
             message: qMsg,
             type: qType,
             body: qMsg?.conversation ||
-                  qMsg?.extendedTextMessage?.text ||
-                  qMsg?.[qType]?.caption ||
-                  '',
-            isMedia: ['imageMessage','videoMessage','documentMessage','audioMessage','stickerMessage'].includes(qType),
-            mediaType: qType.replace('Message','').toLowerCase(),
+                qMsg?.extendedTextMessage?.text ||
+                qMsg?.[qType]?.caption ||
+                '',
+            isMedia: ['imageMessage', 'videoMessage', 'documentMessage', 'audioMessage', 'stickerMessage'].includes(qType),
+            mediaType: qType.replace('Message', '').toLowerCase(),
             mimetype: qMsg?.[qType]?.mimetype || null,
             download: async () => {
                 return await downloadMediaMessage(
@@ -129,7 +139,6 @@ function serializeMessage(sock, msg) {
         sender,
         pushName,
         isGroup,
-        groupMetadata,
         body,
         text: body,
         type,
@@ -168,7 +177,6 @@ function serializeMessage(sock, msg) {
     };
 }
 
-
 async function startBot() {
     console.log('🚀 Starting WhatsApp Bot...');
     await restoreAuthFiles();
@@ -186,10 +194,6 @@ async function startBot() {
     setInterval(() => {
         console.log(`[${new Date().toLocaleString()}] Bot is still running...`);
     }, 5 * 60 * 1000);
-
-    sock.ws.on('close', (code, reason) => {
-        console.warn(`⚠️ WebSocket closed! Code: ${code}, Reason: ${reason}`);
-    });
 
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
@@ -233,7 +237,7 @@ async function startBot() {
 
             try {
                 const userJid = sock.user.id;
-                await sock.sendMessage(userJid, { text: 'Bot linked successfully!' });
+                await sock.sendMessage(userJid, { text: `Bot linked successfully!\nCurrent prefix: ${global.BOT_PREFIX}` });
             } catch (err) {
                 console.error('Could not send message:', err);
             }
@@ -280,11 +284,11 @@ async function startBot() {
 
         const m = serializeMessage(sock, rawMsg);
 
-        if (m.body.startsWith(BOT_PREFIX)) {
-            const args = m.body.slice(BOT_PREFIX.length).trim().split(/\s+/);
+        if (m.body.startsWith(global.BOT_PREFIX)) {
+            const args = m.body.slice(global.BOT_PREFIX.length).trim().split(/\s+/);
             const commandName = args.shift().toLowerCase();
-            const plugin = plugins.get(commandName);
 
+            const plugin = plugins.get(commandName);
             if (plugin) {
                 try {
                     await plugin.execute(sock, m, args);
@@ -294,7 +298,6 @@ async function startBot() {
                 }
             }
         }
-
         for (const plugin of plugins.values()) {
             if (typeof plugin.onMessage === 'function') {
                 try {
@@ -319,6 +322,7 @@ http.createServer((req, res) => {
         res.end(JSON.stringify({
             status: 'online',
             botStatus,
+            prefix: global.BOT_PREFIX,
             time: new Date().toISOString()
         }));
     } else {
