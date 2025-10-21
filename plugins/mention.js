@@ -9,15 +9,15 @@ module.exports = {
             const text = m.body || m.text || m.message?.extendedTextMessage?.text || '';
            // console.log('New message:', text); YA FOR DEBUGS
 
-            const owners = ['25770239992037', '233533763772'];
+            const owners = ['185452896239861','918731810311'];
             const isOwnerTagged = owners.some(owner => text.includes(`@${owner}`));
             if (!isOwnerTagged) return;
 
             //console.log('Owner was tagged!'); YA FOR DEBUGS
 
             const name = m.pushName || m.sender.split('@')[0];
-            const audioUrl = 'https://files.catbox.moe/t1zkqo.mp3';
-            const thumbnail = 'https://i.ibb.co/rfsYsGn1/Ayanokouji-1.jpg';
+            const audioUrl = 'https://files.catbox.moe/mlngid.mp3';
+            const thumbnail = 'https://files.catbox.moe/8q5ttw.jpg';
             const quoted = {
                 key: {
                     fromMe: false,
@@ -42,10 +42,10 @@ module.exports = {
                     contextInfo: {
                         mentionedJid: [m.sender],
                         externalAdReply: {
-                            title: "You tagged my owner Abraham",
-                            body: 'ABZTech ᴍᴜʟᴛɪᴅᴇᴠɪᴄᴇ',
+                            title: "You tagged my owner ALONG",
+                            body: 'LORD ALONG',
                             thumbnailUrl: thumbnail,
-                            sourceUrl: 'https://www.whatsapp.com/channel/0029VaMGgVL3WHTNkhzHik3c',
+                            sourceUrl: 'https://www.along-bots.zone.id',
                             mediaType: 1,
                             renderLargerThumbnail: true,
                         },
