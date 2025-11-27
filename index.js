@@ -1,10 +1,8 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, generateWAMessageFromContent } = require('@whiskeysockets/baileys');
-const readline = require('readline');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const QRCode = require('qrcode');
 const { Boom } = require('@hapi/boom');
 const sqlite3 = require('sqlite3').verbose();
 
@@ -25,7 +23,6 @@ const owners = [
 global.owners = owners;
 // ========================= //
 
-let latestQR = '';
 let botStatus = 'disconnected';
 let presenceInterval = null;
 const db = new sqlite3.Database('./session.db');
@@ -86,53 +83,14 @@ async function startBot() {
     const sock = makeWASocket({
         logger: pino({ level: 'info' }),
         auth: state,
-        printQRInTerminal: true, // Changed to true to show QR in console
+        printQRInTerminal: true, // This shows QR in console
         keepAliveIntervalMs: 10000,
         markOnlineOnConnect: true,
         syncFullHistory: true
     });
-    
-    // Ask for number if no session exists
-    if (!state.creds.registered) {
-        const rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout
-        });
-
-        rl.question("📱 Enter your WhatsApp number (with country code): ", async (number) => {
-            rl.close();
-
-            if (!/^\d+$/.test(number)) {
-                console.error("❌ Invalid number format. Example: 2348123456789");
-                process.exit(1);
-            }
-
-            try {
-                const code = await sock.requestPairingCode(number);
-                console.log(`\x1b[32m🔗 Pairing Code: ${code?.match(/.{1,4}/g)?.join('-')}\x1b[39m`);
-                console.log("📌 Open WhatsApp > Linked Devices > Link with Phone Number and enter this code.");
-            } catch (err) {
-                console.error('[!] Failed to get pairing code:', err);
-            }
-        });
-    }
-
-    setInterval(() => console.log(`[${new Date().toLocaleString()}] Bot is still running...`), 5*60*1000);
 
     sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect, qr } = update;
-
-        // QR code will now be displayed in terminal automatically due to printQRInTerminal: true
-        if (qr) {
-            console.log('📱 QR Code received. Scan it with your phone.');
-            // Optional: You can still generate the QR code as text in console
-            QRCode.toString(qr, { type: 'terminal' }, (err, url) => {
-                if (!err) {
-                    console.log('Scan this QR code:');
-                    console.log(url);
-                }
-            });
-        }
+        const { connection, lastDisconnect } = update;
 
         if (connection === 'close') {
             botStatus = 'disconnected';
@@ -141,17 +99,17 @@ async function startBot() {
             const statusCode = (lastDisconnect?.error instanceof Boom) ? lastDisconnect.error.output.statusCode : 0;
 
             if (statusCode !== DisconnectReason.loggedOut) {
-                console.log('Reconnecting in 10 seconds...');
+                console.log('Connection closed. Reconnecting in 10 seconds...');
                 setTimeout(() => startBot(), 10000);
             } else {
-                console.log('Logged out. Cleaning up...');
+                console.log('Logged out. Cleaning up session...');
                 if (fs.existsSync(AUTH_FOLDER)) fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
                 db.run("DELETE FROM sessions", (err) => { if (err) console.error('DB clear failed:', err); });
                 setTimeout(() => startBot(), 3000);
             }
         } else if (connection === 'open') {
             botStatus = 'connected';
-            console.log('Bot is connected ✅');
+            console.log('✅ Bot is connected successfully!');
 
             presenceInterval = setInterval(() => {
                 if (sock?.ws?.readyState === 1) sock.sendPresenceUpdate('available');
@@ -215,16 +173,8 @@ async function startBot() {
     });
 }
 
+// Simple HTTP server just to keep the process alive
 http.createServer((req, res) => {
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    if (url.pathname === '/qr') {
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end('<html><body style="background:#111;color:white;text-align:center;"><h1>QR Code is displayed in console</h1><p>Check your terminal/console to scan the QR code</p></body></html>');
-    } else if (url.pathname === '/watch') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'online', botStatus, prefix: global.BOT_PREFIX, time: new Date().toISOString() }));
-    } else {
-        res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Bot Server is Running. QR code is displayed in console.');
-    }
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Bot Server is Running. Check console for QR code.');
 }).listen(PORT, () => console.log(`HTTP Server running at http://localhost:${PORT}`));
