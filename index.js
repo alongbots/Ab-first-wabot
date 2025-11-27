@@ -5,6 +5,7 @@ const path = require('path');
 const http = require('http');
 const { Boom } = require('@hapi/boom');
 const sqlite3 = require('sqlite3').verbose();
+const qrcode = require('qrcode-terminal');
 
 const serializeMessage = require('./handler.js');
 
@@ -83,14 +84,18 @@ async function startBot() {
     const sock = makeWASocket({
         logger: pino({ level: 'info' }),
         auth: state,
-        printQRInTerminal: true, // This shows QR in console
         keepAliveIntervalMs: 10000,
         markOnlineOnConnect: true,
         syncFullHistory: true
     });
 
     sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect } = update;
+        const { connection, lastDisconnect, qr } = update;
+
+        if (qr) {
+            console.log('\n📱 Scan the QR code below to login:');
+            qrcode.generate(qr, { small: true });
+        }
 
         if (connection === 'close') {
             botStatus = 'disconnected';
