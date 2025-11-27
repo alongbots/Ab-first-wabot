@@ -86,42 +86,53 @@ async function startBot() {
     const sock = makeWASocket({
         logger: pino({ level: 'info' }),
         auth: state,
-        printQRInTerminal: false,
+        printQRInTerminal: true, // Changed to true to show QR in console
         keepAliveIntervalMs: 10000,
         markOnlineOnConnect: true,
         syncFullHistory: true
     });
     
-// Ask for number if no session exists
-if (!state.creds.registered) {
-    const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout
-    });
+    // Ask for number if no session exists
+    if (!state.creds.registered) {
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
+        });
 
-    rl.question("📱 Enter your WhatsApp number (with country code): ", async (number) => {
-        rl.close();
+        rl.question("📱 Enter your WhatsApp number (with country code): ", async (number) => {
+            rl.close();
 
-        if (!/^\d+$/.test(number)) {
-            console.error("❌ Invalid number format. Example: 2348123456789");
-            process.exit(1);
-        }
+            if (!/^\d+$/.test(number)) {
+                console.error("❌ Invalid number format. Example: 2348123456789");
+                process.exit(1);
+            }
 
-        try {
-            const code = await sock.requestPairingCode(number);
-            console.log(`\x1b[32m🔗 Pairing Code: ${code?.match(/.{1,4}/g)?.join('-')}\x1b[39m`);
-            console.log("📌 Open WhatsApp > Linked Devices > Link with Phone Number and enter this code.");
-        } catch (err) {
-            console.error('[!] Failed to get pairing code:', err);
-        }
-    });
-}
+            try {
+                const code = await sock.requestPairingCode(number);
+                console.log(`\x1b[32m🔗 Pairing Code: ${code?.match(/.{1,4}/g)?.join('-')}\x1b[39m`);
+                console.log("📌 Open WhatsApp > Linked Devices > Link with Phone Number and enter this code.");
+            } catch (err) {
+                console.error('[!] Failed to get pairing code:', err);
+            }
+        });
+    }
+
     setInterval(() => console.log(`[${new Date().toLocaleString()}] Bot is still running...`), 5*60*1000);
 
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
 
-        if (qr) QRCode.toDataURL(qr, (err, url) => { if (!err) latestQR = url; });
+        // QR code will now be displayed in terminal automatically due to printQRInTerminal: true
+        if (qr) {
+            console.log('📱 QR Code received. Scan it with your phone.');
+            // Optional: You can still generate the QR code as text in console
+            QRCode.toString(qr, { type: 'terminal' }, (err, url) => {
+                if (!err) {
+                    console.log('Scan this QR code:');
+                    console.log(url);
+                }
+            });
+        }
 
         if (connection === 'close') {
             botStatus = 'disconnected';
@@ -146,8 +157,11 @@ if (!state.creds.registered) {
                 if (sock?.ws?.readyState === 1) sock.sendPresenceUpdate('available');
             }, 10000);
 
-            try { await sock.sendMessage(sock.user.id, { text: `Bot linked successfully!\nCurrent prefix: ${global.BOT_PREFIX}` }); }
-            catch (err) { console.error('Could not send message:', err); }
+            try { 
+                await sock.sendMessage(sock.user.id, { text: `Bot linked successfully!\nCurrent prefix: ${global.BOT_PREFIX}` }); 
+            } catch (err) { 
+                console.error('Could not send message:', err); 
+            }
         }
     });
 
@@ -155,6 +169,7 @@ if (!state.creds.registered) {
         await saveCreds();
         saveAuthFilesToDB();
     });
+
     const plugins = new Map();
     const pluginPath = path.join(__dirname, PLUGIN_FOLDER);
     try {
@@ -204,12 +219,12 @@ http.createServer((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     if (url.pathname === '/qr') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(latestQR ? `<html><body style="background:#111;color:white;text-align:center;"><h1>Scan QR</h1><img src="${latestQR}" /></body></html>` : 'QR not generated yet.');
+        res.end('<html><body style="background:#111;color:white;text-align:center;"><h1>QR Code is displayed in console</h1><p>Check your terminal/console to scan the QR code</p></body></html>');
     } else if (url.pathname === '/watch') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'online', botStatus, prefix: global.BOT_PREFIX, time: new Date().toISOString() }));
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Bot Server is Running. Visit /qr to scan.');
+        res.end('Bot Server is Running. QR code is displayed in console.');
     }
 }).listen(PORT, () => console.log(`HTTP Server running at http://localhost:${PORT}`));
